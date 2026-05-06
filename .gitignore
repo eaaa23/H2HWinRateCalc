@@ -2,3 +2,4 @@
 .claude
 .idea
 __pycache__
+search_cache.json

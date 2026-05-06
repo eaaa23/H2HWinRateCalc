@@ -178,11 +178,37 @@ _SEARCH_CACHE_READY = threading.Event()
 _SEARCH_SESSION = requests.Session()
 _SEARCH_SESSION.headers["User-Agent"] = "cube-h2h-calculator/1.0"
 _RANK_TOP_N = 100
+_CACHE_FILE = "search_cache.json"
+
+
+def _load_local_cache() -> bool:
+    """Load search cache from local JSON file. Returns True if loaded."""
+    try:
+        with open(_CACHE_FILE) as f:
+            data = json.load(f)
+        if isinstance(data, dict) and len(data) > 0:
+            _SEARCH_CACHE.clear()
+            _SEARCH_CACHE.update(data)
+            _SEARCH_CACHE_READY.set()
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _save_local_cache():
+    """Persist the current search cache to a local JSON file."""
+    try:
+        with open(_CACHE_FILE, "w") as f:
+            json.dump(_SEARCH_CACHE, f, ensure_ascii=False)
+    except Exception:
+        pass
 
 
 def _build_search_cache():
-    """Background: fetch top-N ranks for every event, then load their names."""
-    global _SEARCH_CACHE
+    """Background: fetch top-N ranks for every event, then load their names.
+    Then replace the global cache and persist to disk."""
+    new_cache: dict[str, dict] = {}
 
     # 1. Collect top-ranked person IDs from each event×type combination
     top_ids: set[str] = set()
@@ -199,7 +225,7 @@ def _build_search_cache():
 
     print(f"  top-ranked IDs collected: {len(top_ids)}")
 
-    # 2. Fetch each person's name/country concurrently (only need basic info)
+    # 2. Fetch each person's name/country concurrently
     fetched = 0
     fetched_lock = threading.Lock()
 
@@ -211,7 +237,7 @@ def _build_search_cache():
             )
             resp.raise_for_status()
             data = resp.json()
-            _SEARCH_CACHE[pid] = {
+            new_cache[pid] = {
                 "name": data.get("name", ""),
                 "country": data.get("country", ""),
             }
@@ -225,8 +251,12 @@ def _build_search_cache():
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(_fetch_one, top_ids))
 
+    # 3. Atomically swap cache and persist
+    _SEARCH_CACHE.clear()
+    _SEARCH_CACHE.update(new_cache)
     _SEARCH_CACHE_READY.set()
-    print(f"  search cache ready: {len(_SEARCH_CACHE)} players")
+    _save_local_cache()
+    print(f"  search cache updated: {len(_SEARCH_CACHE)} players")
 
 
 def search_wca_persons(query: str) -> list:
@@ -404,7 +434,12 @@ class H2HHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    print("Building search cache (top-100 per event) ...")
+    # 1. Load cached data from last run so search works immediately
+    if _load_local_cache():
+        print(f"Loaded {len(_SEARCH_CACHE)} players from local cache")
+
+    # 2. Refresh from API in the background; the old cache stays available
+    print("Refreshing search cache from API in background ...")
     threading.Thread(target=_build_search_cache, daemon=True).start()
 
     server = HTTPServer(("127.0.0.1", PORT), H2HHandler)
