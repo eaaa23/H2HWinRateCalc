@@ -209,6 +209,7 @@ def _build_search_cache():
     """Background: fetch top-N ranks for every event, then load their names.
     Then replace the global cache and persist to disk."""
     new_cache: dict[str, dict] = {}
+    has_exception = False
 
     # 1. Collect top-ranked person IDs from each event×type combination
     top_ids: set[str] = set()
@@ -221,6 +222,7 @@ def _build_search_cache():
                 for item in resp.json().get("items", [])[:_RANK_TOP_N]:
                     top_ids.add(item["personId"])
             except Exception as e:
+                has_exception = True
                 print(f"  (rank {rank_type}/{event_id} skipped: {e})")
 
     print(f"  top-ranked IDs collected: {len(top_ids)}")
@@ -230,7 +232,7 @@ def _build_search_cache():
     fetched_lock = threading.Lock()
 
     def _fetch_one(pid: str):
-        nonlocal fetched
+        nonlocal fetched, has_exception
         try:
             resp = _SEARCH_SESSION.get(
                 f"{WCA_API_BASE}/persons/{pid}.json", timeout=30
@@ -242,7 +244,7 @@ def _build_search_cache():
                 "country": data.get("country", ""),
             }
         except Exception:
-            pass
+            has_exception = True
         with fetched_lock:
             fetched += 1
             if fetched % 50 == 0:
@@ -251,12 +253,19 @@ def _build_search_cache():
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(_fetch_one, top_ids))
 
-    # 3. Atomically swap cache and persist
-    _SEARCH_CACHE.clear()
+    # 3. Merge new entries into existing cache (never remove old entries
+    #    on partial failure) and persist
+    old_count = len(_SEARCH_CACHE)
+    if not has_exception:
+        _SEARCH_CACHE.clear()
     _SEARCH_CACHE.update(new_cache)
     _SEARCH_CACHE_READY.set()
     _save_local_cache()
-    print(f"  search cache updated: {len(_SEARCH_CACHE)} players")
+
+    added = len(_SEARCH_CACHE) - old_count
+    updated = len(new_cache) - added if len(new_cache) > added else 0
+    print(f"  search cache updated: {len(_SEARCH_CACHE)} players "
+          f"({added} added, {updated} refreshed)")
 
 
 def search_wca_persons(query: str) -> list:
