@@ -170,84 +170,79 @@ def monte_carlo_winrate(
 
 
 # ---------------------------------------------------------------------------
-# Local person search (the unofficial API has no search endpoint)
+# Local person search – built from top-100 rankings per event
 # ---------------------------------------------------------------------------
 
-_PERSONS_CACHE = None           # list of {"id":..., "name":..., "country":...}
-_PERSONS_CACHE_LOCK = threading.Lock()
+_SEARCH_CACHE = {}              # {wca_id: {"name":..., "country":...}}
+_SEARCH_CACHE_READY = threading.Event()
 _SEARCH_SESSION = requests.Session()
 _SEARCH_SESSION.headers["User-Agent"] = "cube-h2h-calculator/1.0"
+_RANK_TOP_N = 100
 
 
-def _build_person_index() -> list:
-    """Load all person pages into an in-memory index (lazy, first-search)."""
-    global _PERSONS_CACHE
-    with _PERSONS_CACHE_LOCK:
-        if _PERSONS_CACHE is not None:
-            return _PERSONS_CACHE
+def _build_search_cache():
+    """Background: fetch top-N ranks for every event, then load their names."""
+    global _SEARCH_CACHE
 
-        # Determine total pages from the first page
-        first_url = f"{WCA_API_BASE}/persons.json"
-        resp = _SEARCH_SESSION.get(first_url, timeout=60)
-        resp.raise_for_status()
-        first_data = resp.json()
+    # 1. Collect top-ranked person IDs from each event×type combination
+    top_ids: set[str] = set()
+    for event_id in EVENT_MAP:
+        for rank_type in ("single", "average"):
+            url = f"{WCA_API_BASE}/rank/world/{rank_type}/{event_id}.json"
+            try:
+                resp = _SEARCH_SESSION.get(url, timeout=30)
+                resp.raise_for_status()
+                for item in resp.json().get("items", [])[:_RANK_TOP_N]:
+                    top_ids.add(item["personId"])
+            except Exception as e:
+                print(f"  (rank {rank_type}/{event_id} skipped: {e})")
 
-        total = first_data.get("total", 0)
-        page_size = first_data.get("pagination", {}).get("size", 1000)
-        total_pages = max(1, math.ceil(total / page_size))
+    print(f"  top-ranked IDs collected: {len(top_ids)}")
 
-        all_persons = []
-        for item in first_data.get("items", []):
-            all_persons.append({
-                "id": item.get("id", ""),
-                "name": item.get("name", ""),
-                "country": item.get("country", ""),
-            })
+    # 2. Fetch each person's name/country concurrently (only need basic info)
+    fetched = 0
+    fetched_lock = threading.Lock()
 
-        # Fetch remaining pages concurrently
-        remaining = range(2, total_pages + 1)
-        if remaining:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
-                future_to_page = {}
-                for pn in remaining:
-                    url = f"{WCA_API_BASE}/persons-page-{pn}.json"
-                    future_to_page[pool.submit(
-                        _SEARCH_SESSION.get, url, timeout=60
-                    )] = pn
+    def _fetch_one(pid: str):
+        nonlocal fetched
+        try:
+            resp = _SEARCH_SESSION.get(
+                f"{WCA_API_BASE}/persons/{pid}.json", timeout=30
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            _SEARCH_CACHE[pid] = {
+                "name": data.get("name", ""),
+                "country": data.get("country", ""),
+            }
+        except Exception:
+            pass
+        with fetched_lock:
+            fetched += 1
+            if fetched % 50 == 0:
+                print(f"  ... {fetched}/{len(top_ids)} persons indexed")
 
-                for future in concurrent.futures.as_completed(future_to_page):
-                    try:
-                        resp = future.result()
-                        resp.raise_for_status()
-                        data = resp.json()
-                        for item in data.get("items", []):
-                            all_persons.append({
-                                "id": item.get("id", ""),
-                                "name": item.get("name", ""),
-                                "country": item.get("country", ""),
-                            })
-                    except Exception:
-                        pass  # one missing page won't break search
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(_fetch_one, top_ids))
 
-        _PERSONS_CACHE = all_persons
-        return _PERSONS_CACHE
+    _SEARCH_CACHE_READY.set()
+    print(f"  search cache ready: {len(_SEARCH_CACHE)} players")
 
 
 def search_wca_persons(query: str) -> list:
-    """Search for WCA persons by name or ID using the in-memory index."""
+    """Search cached top-ranked persons by name or WCA ID."""
     q = query.strip().lower()
-    if not q:
+    if not q or not _SEARCH_CACHE_READY.is_set():
         return []
-    persons = _build_person_index()
     results = []
-    for p in persons:
-        if q in p["id"].lower() or q in p["name"].lower():
+    for wca_id, info in _SEARCH_CACHE.items():
+        if q in info["name"].lower() or q in wca_id.lower():
             results.append({
-                "wca_id": p["id"],
-                "name": p["name"],
-                "country_iso2": p["country"],
+                "wca_id": wca_id,
+                "name": info["name"],
+                "country_iso2": info["country"],
             })
-            if len(results) >= 20:
+            if len(results) >= 10:
                 break
     return results
 
@@ -409,6 +404,9 @@ class H2HHandler(BaseHTTPRequestHandler):
 
 
 def main():
+    print("Building search cache (top-100 per event) ...")
+    threading.Thread(target=_build_search_cache, daemon=True).start()
+
     server = HTTPServer(("127.0.0.1", PORT), H2HHandler)
     print(f"Cube H2H Calculator running at http://localhost:{PORT}")
     print("Press Ctrl+C to stop.")

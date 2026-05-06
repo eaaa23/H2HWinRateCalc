@@ -71,6 +71,35 @@ body {
 .player-input input:focus {
   border-color: #60a5fa;
 }
+.search-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.search-dropdown.show { display: block; }
+.search-item {
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.search-item:hover, .search-item.active {
+  background: #1e293b;
+}
+.search-item .name { color: #e2e8f0; }
+.search-item .wca-id { color: #64748b; font-size: 0.8rem; margin-left: 8px; }
 .options-row {
   display: flex;
   gap: 12px;
@@ -267,13 +296,15 @@ body {
 <div class="form-card">
   <div class="vs-row">
     <div class="player-input">
-      <label>Player 1 WCA ID</label>
-      <input type="text" id="id1" placeholder="e.g. 2009ZEMD01" autocomplete="off" />
+      <label>Player 1 — Name or WCA ID</label>
+      <input type="text" id="id1" placeholder="e.g. Zemdegs or 2009ZEMD01" autocomplete="off" />
+      <div class="search-dropdown" id="dropdown1"></div>
     </div>
     <span style="color:#64748b;font-weight:700;font-size:1.1rem;padding-bottom:6px;">VS</span>
     <div class="player-input">
-      <label>Player 2 WCA ID</label>
-      <input type="text" id="id2" placeholder="e.g. 2015KOLM01" autocomplete="off" />
+      <label>Player 2 — Name or WCA ID</label>
+      <input type="text" id="id2" placeholder="e.g. Tymon or 2015KOLM01" autocomplete="off" />
+      <div class="search-dropdown" id="dropdown2"></div>
     </div>
   </div>
   <div class="options-row">
@@ -360,6 +391,73 @@ function flagEmoji(country) {
   const codePoints = country.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0));
   return String.fromCodePoint(...codePoints);
 }
+
+// Search-as-you-type (searches cached top-ranked players)
+let searchTimers = {};
+function setupSearch(inputId, dropdownId) {
+  const input = document.getElementById(inputId);
+  const dropdown = document.getElementById(dropdownId);
+
+  input.addEventListener('input', function() {
+    const q = this.value.trim();
+    if (searchTimers[inputId]) clearTimeout(searchTimers[inputId]);
+    if (q.length < 2) { dropdown.classList.remove('show'); return; }
+    searchTimers[inputId] = setTimeout(() => {
+      fetch('/api/search?q=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(data => {
+          if (data.error || !data.results) { dropdown.classList.remove('show'); return; }
+          const results = data.results;
+          if (!results.length) { dropdown.classList.remove('show'); return; }
+          dropdown.innerHTML = results.map(p =>
+            '<div class="search-item" data-id="' + p.wca_id + '">' +
+            '<span>' + flagEmoji(p.country_iso2) + ' ' + p.name + '</span>' +
+            '<span class="wca-id">' + p.wca_id + '</span></div>'
+          ).join('');
+          dropdown.classList.add('show');
+          dropdown.querySelectorAll('.search-item').forEach(item => {
+            item.addEventListener('click', function() {
+              input.value = this.dataset.id;
+              dropdown.classList.remove('show');
+            });
+          });
+        })
+        .catch(() => {});
+    }, 350);
+  });
+
+  input.addEventListener('keydown', function(e) {
+    const items = dropdown.querySelectorAll('.search-item');
+    const active = dropdown.querySelector('.search-item.active');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (active) active.classList.remove('active');
+      const next = active ? active.nextElementSibling : items[0];
+      if (next) next.classList.add('active');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (active) active.classList.remove('active');
+      const prev = active ? active.previousElementSibling : items[items.length - 1];
+      if (prev) prev.classList.add('active');
+    } else if (e.key === 'Enter' && active) {
+      e.preventDefault();
+      input.value = active.dataset.id;
+      dropdown.classList.remove('show');
+      doCalc();
+    } else if (e.key === 'Escape') {
+      dropdown.classList.remove('show');
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.remove('show');
+    }
+  });
+}
+
+setupSearch('id1', 'dropdown1');
+setupSearch('id2', 'dropdown2');
 
 function doCalc() {
   const id1 = document.getElementById('id1').value.trim();
