@@ -251,82 +251,110 @@ body {
   margin-bottom: 28px;
 }
 
-.bo5-section {
+.match-section {
   background: #0f172a;
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 24px;
 }
-.bo5-section h3 {
+.match-section h3 {
   font-size: 0.95rem;
   color: #94a3b8;
   margin-bottom: 14px;
   padding-bottom: 8px;
   border-bottom: 1px solid #1e293b;
 }
-.bo5-score-row {
+.match-format-row {
   display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   margin-bottom: 14px;
 }
-.bo5-score-input {
-  width: 48px;
-  padding: 6px 8px;
+.match-format-label {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+.match-format-row select {
+  padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid #334155;
   background: #1e293b;
   color: #e2e8f0;
-  font-size: 1.05rem;
+  font-size: 0.9rem;
+  outline: none;
+}
+.match-score-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.match-score-input {
+  width: 44px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 1rem;
   font-weight: 600;
   text-align: center;
   outline: none;
 }
-.bo5-score-input:focus {
+.match-score-input:focus {
   border-color: #60a5fa;
 }
-.bo5-score-label {
-  font-size: 0.85rem;
+.match-score-label {
+  font-size: 0.82rem;
   color: #94a3b8;
 }
-.bo5-vs {
+.match-vs {
   color: #64748b;
   font-weight: 700;
 }
-.bo5-bar {
+.match-bar-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 10px 0 4px;
+}
+.match-bar {
   display: flex;
-  height: 36px;
+  height: 32px;
   border-radius: 8px;
   overflow: hidden;
   background: #334155;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
-.bo5-bar-left {
+.match-bar-left {
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(90deg, #3b82f6, #6366f1);
   color: #fff;
   font-weight: 700;
-  font-size: 0.85rem;
-  min-width: 36px;
+  font-size: 0.8rem;
+  min-width: 32px;
 }
-.bo5-bar-right {
+.match-bar-right {
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(90deg, #f59e0b, #ef4444);
   color: #fff;
   font-weight: 700;
-  font-size: 0.85rem;
-  min-width: 36px;
+  font-size: 0.8rem;
+  min-width: 32px;
 }
-.bo5-early {
+.match-early {
   text-align: center;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #f59e0b;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+}
+.set-score-divider {
+  border-top: 1px solid #1e293b;
+  margin: 12px 0 10px;
 }
 
 .stats-grid {
@@ -438,19 +466,43 @@ body {
     <div class="wr-right" id="wrRight" style="width:50%"></div>
   </div>
   <div class="draw-info" id="drawInfo"></div>
-  <div class="bo5-section">
-    <h3>BO5 Series (Best of 5) — first to 3 wins</h3>
-    <div class="bo5-score-row">
-      <span class="bo5-score-label">Current score:</span>
-      <input type="number" class="bo5-score-input" id="bo5s1" value="0" min="0" max="2" onchange="updateBo5()" />
-      <span class="bo5-vs">–</span>
-      <input type="number" class="bo5-score-input" id="bo5s2" value="0" min="0" max="2" onchange="updateBo5()" />
+  <div class="match-section">
+    <h3>Match Simulation</h3>
+    <div class="match-format-row">
+      <span class="match-format-label">Format:</span>
+      <select id="matchFormat" onchange="updateMatch()">
+        <option value="1">1 set (BO5) — first to 3 games</option>
+        <option value="3">Best of 3 — first to 2 sets</option>
+        <option value="5">Best of 5 — first to 3 sets</option>
+      </select>
     </div>
-    <div class="bo5-bar" id="bo5Bar">
-      <div class="bo5-bar-left" id="bo5Left" style="width:50%"></div>
-      <div class="bo5-bar-right" id="bo5Right" style="width:50%"></div>
+    <div class="match-score-row">
+      <span class="match-score-label">Current set (games):</span>
+      <input type="number" class="match-score-input" id="gameS1" value="0" min="0" max="2" onchange="updateMatch()" />
+      <span class="match-vs">–</span>
+      <input type="number" class="match-score-input" id="gameS2" value="0" min="0" max="2" onchange="updateMatch()" />
     </div>
-    <div class="bo5-early" id="bo5Early" style="display:none"></div>
+    <div class="match-bar-label" id="setWinLabel">Current set win probability:</div>
+    <div class="match-bar" id="setWinBar">
+      <div class="match-bar-left" id="setWinLeft" style="width:50%"></div>
+      <div class="match-bar-right" id="setWinRight" style="width:50%"></div>
+    </div>
+    <div class="match-early" id="setWinEarly" style="display:none"></div>
+    <div id="setScoreSection" style="display:none">
+      <div class="set-score-divider"></div>
+      <div class="match-score-row">
+        <span class="match-score-label">Set score (大比分):</span>
+        <input type="number" class="match-score-input" id="setS1" value="0" min="0" onchange="updateMatch()" />
+        <span class="match-vs">–</span>
+        <input type="number" class="match-score-input" id="setS2" value="0" min="0" onchange="updateMatch()" />
+      </div>
+      <div class="match-bar-label">Overall match win probability:</div>
+      <div class="match-bar" id="matchWinBar">
+        <div class="match-bar-left" id="matchWinLeft" style="width:50%"></div>
+        <div class="match-bar-right" id="matchWinRight" style="width:50%"></div>
+      </div>
+      <div class="match-early" id="matchWinEarly" style="display:none"></div>
+    </div>
   </div>
   <div class="stats-grid">
     <div class="stats-box">
@@ -633,77 +685,137 @@ function showResult(d) {
 
   document.getElementById('resultCard').classList.add('show');
 
-  // Store single-game win rates for BO5 calculation
+  // Store single-game win rates for match simulation
   window._p1winrate = wr.player1_winrate;
   window._p2winrate = wr.player2_winrate;
-  updateBo5();
+  updateMatch();
 }
 
-// BO5 series win probability (DP over states)
-function bo5WinProb(p1_eff, needs1, needs2) {
-  // p1_eff: probability P1 wins one game (excluding draws)
-  // needs1: wins P1 still needs (3 - current_score)
-  // needs2: wins P2 still needs (3 - current_score)
+// Probability to win N "items" before opponent wins M (DP)
+// p: probability to win one item (excluding draws)
+// needs1: items P1 still needs
+// needs2: items P2 still needs
+function needsN(p, needs1, needs2) {
+  if (needs1 <= 0) return 1.0;
+  if (needs2 <= 0) return 0.0;
   const dp = Array.from({length: needs1 + 1}, () => new Array(needs2 + 1).fill(0));
   for (let i = 0; i <= needs1; i++) {
     for (let j = 0; j <= needs2; j++) {
       if (i === 0) { dp[i][j] = 1.0; continue; }
       if (j === 0) { dp[i][j] = 0.0; continue; }
-      dp[i][j] = p1_eff * dp[i - 1][j] + (1 - p1_eff) * dp[i][j - 1];
+      dp[i][j] = p * dp[i - 1][j] + (1 - p) * dp[i][j - 1];
     }
   }
   return dp[needs1][needs2];
 }
 
-function updateBo5() {
+function updateMatch() {
   const p1 = window._p1winrate;
   const p2 = window._p2winrate;
   if (p1 === undefined || p2 === undefined) return;
 
-  const s1 = Math.min(2, Math.max(0, parseInt(document.getElementById('bo5s1').value) || 0));
-  const s2 = Math.min(2, Math.max(0, parseInt(document.getElementById('bo5s2').value) || 0));
-  document.getElementById('bo5s1').value = s1;
-  document.getElementById('bo5s2').value = s2;
-
-  // Already decided?
-  if (s1 >= 3) {
-    document.getElementById('bo5Left').style.width = '100%';
-    document.getElementById('bo5Left').textContent = '100%';
-    document.getElementById('bo5Right').style.width = '0%';
-    document.getElementById('bo5Right').textContent = '';
-    document.getElementById('bo5Early').style.display = 'block';
-    document.getElementById('bo5Early').textContent = 'Series already decided (P1 won 3)';
-    return;
-  }
-  if (s2 >= 3) {
-    document.getElementById('bo5Left').style.width = '0%';
-    document.getElementById('bo5Left').textContent = '';
-    document.getElementById('bo5Right').style.width = '100%';
-    document.getElementById('bo5Right').textContent = '100%';
-    document.getElementById('bo5Early').style.display = 'block';
-    document.getElementById('bo5Early').textContent = 'Series already decided (P2 won 3)';
-    return;
-  }
-
-  document.getElementById('bo5Early').style.display = 'none';
-
-  // Effective single-game win rate (normalize away draws)
   const denom = p1 + p2;
   const p1_eff = denom > 0 ? p1 / denom : 0.5;
-  const needs1 = 3 - s1;
-  const needs2 = 3 - s2;
 
-  const seriesP1 = bo5WinProb(p1_eff, needs1, needs2);
-  const seriesP2 = 1 - seriesP1;
+  const format = parseInt(document.getElementById('matchFormat').value) || 1;
+  const firstTo = (format + 1) / 2;  // 1→1, 3→2, 5→3
 
-  const pct1 = Math.max(5, (seriesP1 * 100).toFixed(1));
-  const pct2 = Math.max(5, (seriesP2 * 100).toFixed(1));
-  const totalPct = parseFloat(pct1) + parseFloat(pct2);
+  // Read game score (小比分): 0–2 each
+  const g1 = Math.min(2, Math.max(0, parseInt(document.getElementById('gameS1').value) || 0));
+  const g2 = Math.min(2, Math.max(0, parseInt(document.getElementById('gameS2').value) || 0));
+  document.getElementById('gameS1').value = g1;
+  document.getElementById('gameS2').value = g2;
 
-  document.getElementById('bo5Left').style.width = (parseFloat(pct1) / totalPct * 100) + '%';
-  document.getElementById('bo5Left').textContent = pct1 + '%';
-  document.getElementById('bo5Right').style.width = (parseFloat(pct2) / totalPct * 100) + '%';
-  document.getElementById('bo5Right').textContent = pct2 + '%';
+  // --- Current set win probability ---
+  let p_set_ongoing;
+  let setLabel = 'Current set win probability:';
+  if (g1 >= 3 || g2 >= 3) {
+    p_set_ongoing = g1 >= 3 ? 1.0 : 0.0;
+    document.getElementById('setWinEarly').style.display = 'block';
+    document.getElementById('setWinEarly').textContent =
+      'Set already decided (' + (g1 >= 3 ? 'P1' : 'P2') + ' won 3 games)';
+    setLabel = 'Current set (decided):';
+  } else {
+    document.getElementById('setWinEarly').style.display = 'none';
+    if (g1 === 0 && g2 === 0) setLabel = 'Fresh set win probability:';
+    p_set_ongoing = needsN(p1_eff, 3 - g1, 3 - g2);
+  }
+  document.getElementById('setWinLabel').textContent = setLabel;
+
+  // Render set win bar
+  _renderBar('setWinLeft', 'setWinRight', p_set_ongoing, 'setWinBar');
+
+  // --- Set score section visibility ---
+  const setSection = document.getElementById('setScoreSection');
+  if (format === 1) {
+    setSection.style.display = 'none';
+    return;
+  }
+  setSection.style.display = 'block';
+
+  // Read set score (大比分) and cap to valid range
+  const maxSet = firstTo - 1;
+  const s1 = Math.min(maxSet, Math.max(0, parseInt(document.getElementById('setS1').value) || 0));
+  const s2 = Math.min(maxSet, Math.max(0, parseInt(document.getElementById('setS2').value) || 0));
+  document.getElementById('setS1').value = s1;
+  document.getElementById('setS2').value = s2;
+
+  // Check if set score already decides the match
+  if (s1 >= firstTo) {
+    document.getElementById('setWinEarly').style.display = 'block';
+    document.getElementById('setWinEarly').textContent = 'Set already decided (P1 won)';
+    _renderBar('matchWinLeft', 'matchWinRight', 1.0, 'matchWinBar');
+    document.getElementById('matchWinEarly').style.display = 'block';
+    document.getElementById('matchWinEarly').textContent = 'Match already decided (P1 won ' + firstTo + ' sets)';
+    return;
+  }
+  if (s2 >= firstTo) {
+    document.getElementById('setWinEarly').style.display = 'block';
+    document.getElementById('setWinEarly').textContent = 'Set already decided (P2 won)';
+    _renderBar('matchWinLeft', 'matchWinRight', 0.0, 'matchWinBar');
+    document.getElementById('matchWinEarly').style.display = 'block';
+    document.getElementById('matchWinEarly').textContent = 'Match already decided (P2 won ' + firstTo + ' sets)';
+    return;
+  }
+  document.getElementById('matchWinEarly').style.display = 'none';
+
+  // Probability of winning a fresh set (from 0-0)
+  const p_set_fresh = needsN(p1_eff, 3, 3);
+
+  // Overall match win probability:
+  // First, the ongoing set resolves: P1 wins it with p_set_ongoing,
+  // then continues from (s1+1, s2) vs (s1, s2+1).
+  // Remaining sets are all fresh.
+  const p_match = p_set_ongoing * needsN(p_set_fresh, firstTo - (s1 + 1), firstTo - s2)
+                + (1 - p_set_ongoing) * needsN(p_set_fresh, firstTo - s1, firstTo - (s2 + 1));
+
+  _renderBar('matchWinLeft', 'matchWinRight', p_match, 'matchWinBar');
+}
+
+function _renderBar(leftId, rightId, prob1, barId) {
+  const bar = document.getElementById(barId);
+  const left = document.getElementById(leftId);
+  const right = document.getElementById(rightId);
+
+  if (prob1 >= 1.0) {
+    left.style.width = '100%';
+    left.textContent = '100%';
+    right.style.width = '0%';
+    right.textContent = '';
+  } else if (prob1 <= 0.0) {
+    left.style.width = '0%';
+    left.textContent = '';
+    right.style.width = '100%';
+    right.textContent = '100%';
+  } else {
+    const pct1 = Math.max(5, (prob1 * 100).toFixed(1));
+    const pct2 = Math.max(5, ((1 - prob1) * 100).toFixed(1));
+    const total = parseFloat(pct1) + parseFloat(pct2);
+    left.style.width = (parseFloat(pct1) / total * 100) + '%';
+    left.textContent = pct1 + '%';
+    right.style.width = (parseFloat(pct2) / total * 100) + '%';
+    right.textContent = pct2 + '%';
+  }
 }
 
 // Allow Enter key to trigger calculation
