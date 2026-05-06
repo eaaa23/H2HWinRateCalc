@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """Magic Cube H2H Win Rate Calculator
 
-Fetches historical results from WCA API for two competitors,
-estimates head-to-head win rate using Monte Carlo simulation,
+Fetches historical results from WCA via the unofficial REST API for two
+competitors, estimates head-to-head win rate using Monte Carlo simulation,
 and serves results on a local web page.
 """
 
+import concurrent.futures
 import json
 import math
 import random
 import threading
-from datetime import datetime, date
+from datetime import date
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+
 import requests
 
-WCA_API_BASE = "https://www.worldcubeassociation.org/api/v0"
+WCA_API_BASE = "https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/refs/heads/v1"
 
 EVENT_MAP = {
     "333": "3x3x3 Cube",
@@ -28,65 +30,68 @@ EVENT_MAP = {
 
 PORT = 8080
 
+# ---------------------------------------------------------------------------
+# WCA data fetching (unofficial static-file API)
+# ---------------------------------------------------------------------------
 
 def fetch_wca_person(wca_id: str) -> dict:
-    """Fetch basic person info from WCA API.
-    
-    Returns the nested 'person' dict with name, country_iso2, etc.
+    """Fetch full person info from the unofficial WCA REST API.
+
+    Returns a dict with name, country, and the nested 'results' object
+    keyed by competition_id -> event_id -> list of round results.
     """
-    resp = requests.get(f"{WCA_API_BASE}/persons/{wca_id}", timeout=15)
+    resp = requests.get(
+        f"{WCA_API_BASE}/persons/{wca_id}.json",
+        headers={"User-Agent": "cube-h2h-calculator/1.0"},
+        timeout=30,
+    )
     resp.raise_for_status()
-    data = resp.json()
-    person = data.get("person", {})
-    if not person:
-        raise ValueError(f"Person '{wca_id}' not found on WCA.")
+    person = resp.json()  # flat object, no nested "person" key
     return {
         "name": person.get("name", wca_id),
-        "country_iso2": person.get("country_iso2", ""),
+        "country": person.get("country", ""),
+        "results": person.get("results", {}),
     }
 
 
-def fetch_wca_results(wca_id: str, event_id: str) -> list:
-    """Fetch competition results for a user, filtered by event."""
-    resp = requests.get(
-        f"{WCA_API_BASE}/persons/{wca_id}/results",
-        params={"event_id": event_id},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json()
+def extract_times(results: dict, event_id: str, value_type: str,
+                  since_year: int = None) -> list:
+    """Extract valid times from the nested results structure.
 
+    results: dict  keyed by competition_id -> event_id -> list of round dicts
+    event_id: e.g. "333"
+    value_type: "single" or "average"
+    since_year: optional year int; only include results from competitions
+                on or after this year (inferred from competition ID suffix).
 
-def extract_times(results: list[dict], value_type: str, since_year: int = None) -> list:
-    """Extract valid times for a given value type.
-    
-    value_type: 'single' or 'average'
-    DNF (-1) and DNS (-2) are excluded.
+    DNF (-1) and DNS (-2) results are excluded.
     WCA stores times in centiseconds.
-    since_year: optional year int; only include results from
-                competitions on or after this year.
     """
     times = []
-    for r in results:
+    for competition_id, events in results.items():
         if since_year:
-            competition_id = r.get("competition_id", "")
-            competition_year = competition_id[-4:]
-            if not competition_year.isdigit():
+            comp_year_str = competition_id[-4:]
+            if not comp_year_str.isdigit():
                 continue
-            if int(competition_year) < since_year:
+            if int(comp_year_str) < since_year:
                 continue
 
-        result_times = []
-        if value_type == "average":
-            result_times = [r.get("average", 0)]
-        elif value_type == "single":
-            result_times = r.get("attempts", [])
-
-        for val in result_times:
-            if val is not None and val >= 0:
-                times.append(val)
+        round_list = events.get(event_id, [])
+        for rd in round_list:
+            if value_type == "average":
+                val = rd.get("average", 0)
+                if val is not None and val >= 0:
+                    times.append(val)
+            elif value_type == "single":
+                for val in rd.get("solves", []):
+                    if val is not None and val >= 0:
+                        times.append(val)
     return times
 
+
+# ---------------------------------------------------------------------------
+# Formatting & statistics
+# ---------------------------------------------------------------------------
 
 def format_time(centiseconds: float) -> str:
     """Format centiseconds into human-readable time string."""
@@ -125,9 +130,9 @@ def monte_carlo_winrate(
     times1: list, times2: list, simulations: int = 50000
 ) -> dict:
     """Estimate H2H win rate using Monte Carlo simulation.
-    
+
     Models each competitor's performance as a normal distribution
-    fitted to their historical results. Lower time = better.
+    fitted to their historical results.  Lower time = better.
     """
     stats1 = calc_stats(times1)
     stats2 = calc_stats(times2)
@@ -142,13 +147,10 @@ def monte_carlo_winrate(
     draws = 0
 
     for _ in range(simulations):
-        # Ensure sigma is at least a small positive value to avoid degenerate distributions
         s1 = max(sigma1, 0.5)
         s2 = max(sigma2, 0.5)
         t1 = random.gauss(mu1, s1)
         t2 = random.gauss(mu2, s2)
-        # For normal events, lower time wins; for FMC (fewest moves), lower is also better
-        # WCA FMC stores result as number of moves * 100, so lower still wins
         if t1 < t2:
             wins1 += 1
         elif t2 < t1:
@@ -160,53 +162,120 @@ def monte_carlo_winrate(
         "player1_winrate": wins1 / simulations,
         "player2_winrate": wins2 / simulations,
         "draw_rate": draws / simulations,
-        "stats1": {k: (format_time(v) if k != "count" else v) for k, v in stats1.items()},
-        "stats2": {k: (format_time(v) if k != "count" else v) for k, v in stats2.items()},
+        "stats1": {k: (format_time(v) if k != "count" else v)
+                   for k, v in stats1.items()},
+        "stats2": {k: (format_time(v) if k != "count" else v)
+                   for k, v in stats2.items()},
     }
 
 
+# ---------------------------------------------------------------------------
+# Local person search (the unofficial API has no search endpoint)
+# ---------------------------------------------------------------------------
+
+_PERSONS_CACHE = None           # list of {"id":..., "name":..., "country":...}
+_PERSONS_CACHE_LOCK = threading.Lock()
+_SEARCH_SESSION = requests.Session()
+_SEARCH_SESSION.headers["User-Agent"] = "cube-h2h-calculator/1.0"
+
+
+def _build_person_index() -> list:
+    """Load all person pages into an in-memory index (lazy, first-search)."""
+    global _PERSONS_CACHE
+    with _PERSONS_CACHE_LOCK:
+        if _PERSONS_CACHE is not None:
+            return _PERSONS_CACHE
+
+        # Determine total pages from the first page
+        first_url = f"{WCA_API_BASE}/persons.json"
+        resp = _SEARCH_SESSION.get(first_url, timeout=60)
+        resp.raise_for_status()
+        first_data = resp.json()
+
+        total = first_data.get("total", 0)
+        page_size = first_data.get("pagination", {}).get("size", 1000)
+        total_pages = max(1, math.ceil(total / page_size))
+
+        all_persons = []
+        for item in first_data.get("items", []):
+            all_persons.append({
+                "id": item.get("id", ""),
+                "name": item.get("name", ""),
+                "country": item.get("country", ""),
+            })
+
+        # Fetch remaining pages concurrently
+        remaining = range(2, total_pages + 1)
+        if remaining:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+                future_to_page = {}
+                for pn in remaining:
+                    url = f"{WCA_API_BASE}/persons-page-{pn}.json"
+                    future_to_page[pool.submit(
+                        _SEARCH_SESSION.get, url, timeout=60
+                    )] = pn
+
+                for future in concurrent.futures.as_completed(future_to_page):
+                    try:
+                        resp = future.result()
+                        resp.raise_for_status()
+                        data = resp.json()
+                        for item in data.get("items", []):
+                            all_persons.append({
+                                "id": item.get("id", ""),
+                                "name": item.get("name", ""),
+                                "country": item.get("country", ""),
+                            })
+                    except Exception:
+                        pass  # one missing page won't break search
+
+        _PERSONS_CACHE = all_persons
+        return _PERSONS_CACHE
+
+
 def search_wca_persons(query: str) -> list:
-    """Search for WCA persons by name or ID."""
-    resp = requests.get(
-        f"{WCA_API_BASE}/persons",
-        params={"search": query, "per_page": 10},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    """Search for WCA persons by name or ID using the in-memory index."""
+    q = query.strip().lower()
+    if not q:
+        return []
+    persons = _build_person_index()
     results = []
-    for item in data:
-        p = item.get("person", item)  # search returns {"person": {...}}
-        results.append({
-            "wca_id": p.get("wca_id", ""),
-            "name": p.get("name", ""),
-            "country_iso2": p.get("country_iso2", ""),
-        })
+    for p in persons:
+        if q in p["id"].lower() or q in p["name"].lower():
+            results.append({
+                "wca_id": p["id"],
+                "name": p["name"],
+                "country_iso2": p["country"],
+            })
+            if len(results) >= 20:
+                break
     return results
 
 
-def compute_h2h(id1: str, id2: str, event_id: str, value_type: str, since_year: int = None) -> dict:
+# ---------------------------------------------------------------------------
+# H2H computation
+# ---------------------------------------------------------------------------
+
+def compute_h2h(id1: str, id2: str, event_id: str, value_type: str,
+                since_year: int = None) -> dict:
     """Main function: fetch data, compute, return result."""
     if id1 == id2:
         return {"error": "Please enter two different WCA IDs."}
 
     person1, person2 = {}, {}
-    results1, results2 = [], []
     errors = []
 
     def fetch1():
-        nonlocal person1, results1
+        nonlocal person1
         try:
             person1 = fetch_wca_person(id1)
-            results1 = fetch_wca_results(id1, event_id)
         except Exception as e:
             errors.append(f"Player 1 ({id1}): {e}")
 
     def fetch2():
-        nonlocal person2, results2
+        nonlocal person2
         try:
             person2 = fetch_wca_person(id2)
-            results2 = fetch_wca_results(id2, event_id)
         except Exception as e:
             errors.append(f"Player 2 ({id2}): {e}")
 
@@ -214,24 +283,28 @@ def compute_h2h(id1: str, id2: str, event_id: str, value_type: str, since_year: 
     th2 = threading.Thread(target=fetch2)
     th1.start()
     th2.start()
-    th1.join(timeout=20)
-    th2.join(timeout=20)
+    th1.join(timeout=30)
+    th2.join(timeout=30)
 
     if errors:
         return {"error": " | ".join(errors)}
 
     name1 = person1.get("name", id1)
     name2 = person2.get("name", id2)
-    country1 = person1.get("country_iso2", "")
-    country2 = person2.get("country_iso2", "")
+    country1 = person1.get("country", "")
+    country2 = person2.get("country", "")
 
-    times1 = extract_times(results1, value_type, since_year)
-    times2 = extract_times(results2, value_type, since_year)
+    times1 = extract_times(person1.get("results", {}), event_id,
+                           value_type, since_year)
+    times2 = extract_times(person2.get("results", {}), event_id,
+                           value_type, since_year)
 
     if not times1:
-        return {"error": f"{name1} has no valid results for {EVENT_MAP.get(event_id, event_id)} ({value_type})."}
+        return {"error": f"{name1} has no valid results for "
+                         f"{EVENT_MAP.get(event_id, event_id)} ({value_type})."}
     if not times2:
-        return {"error": f"{name2} has no valid results for {EVENT_MAP.get(event_id, event_id)} ({value_type})."}
+        return {"error": f"{name2} has no valid results for "
+                         f"{EVENT_MAP.get(event_id, event_id)} ({value_type})."}
 
     result = monte_carlo_winrate(times1, times2)
     if not result:
@@ -247,6 +320,10 @@ def compute_h2h(id1: str, id2: str, event_id: str, value_type: str, since_year: 
         "winrate": result,
     }
 
+
+# ---------------------------------------------------------------------------
+# HTTP server
+# ---------------------------------------------------------------------------
 
 with open("main.html") as fp:
     HTML_PAGE = fp.read()
@@ -328,8 +405,7 @@ class H2HHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def log_message(self, fmt, *args):
-        # Quiet mode: only log errors
-        pass
+        pass  # quiet mode
 
 
 def main():
