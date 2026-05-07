@@ -6,358 +6,22 @@ competitors, estimates head-to-head win rate using Monte Carlo simulation,
 and serves results on a local web page.
 """
 
-import concurrent.futures
 import json
-import math
-import random
 import threading
 from datetime import date
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-import requests
-
-WCA_API_BASE = "https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/refs/heads/v1"
-
-EVENT_MAP = {
-    "333": "3x3x3 Cube",
-    "222": "2x2x2 Cube",
-    "444": "4x4x4 Cube",
-    "555": "5x5x5 Cube",
-    "333bf": "3x3x3 Blindfolded",
-    "333oh": "3x3x3 One-Handed",
-}
-
-PORT = 8080
-
-# ---------------------------------------------------------------------------
-# WCA data fetching (unofficial static-file API)
-# ---------------------------------------------------------------------------
-
-def fetch_wca_person(wca_id: str) -> dict:
-    """Fetch full person info from the unofficial WCA REST API.
-
-    Returns a dict with name, country, and the nested 'results' object
-    keyed by competition_id -> event_id -> list of round results.
-    """
-    resp = requests.get(
-        f"{WCA_API_BASE}/persons/{wca_id}.json",
-        headers={"User-Agent": "cube-h2h-calculator/1.0"},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    person = resp.json()  # flat object, no nested "person" key
-    return {
-        "name": person.get("name", wca_id),
-        "country": person.get("country", ""),
-        "results": person.get("results", {}),
-    }
-
-
-def extract_times(results: dict, event_id: str, value_type: str,
-                  since_year: int = None) -> list:
-    """Extract valid times from the nested results structure.
-
-    results: dict  keyed by competition_id -> event_id -> list of round dicts
-    event_id: e.g. "333"
-    value_type: "single" or "average"
-    since_year: optional year int; only include results from competitions
-                on or after this year (inferred from competition ID suffix).
-
-    DNF (-1) and DNS (-2) results are excluded.
-    WCA stores times in centiseconds.
-    """
-    times = []
-    for competition_id, events in results.items():
-        if since_year:
-            comp_year_str = competition_id[-4:]
-            if not comp_year_str.isdigit():
-                continue
-            if int(comp_year_str) < since_year:
-                continue
-
-        round_list = events.get(event_id, [])
-        for rd in round_list:
-            if value_type == "average":
-                val = rd.get("average", 0)
-                if val is not None and val >= 0:
-                    times.append(val)
-            elif value_type == "single":
-                for val in rd.get("solves", []):
-                    if val is not None and val >= 0:
-                        times.append(val)
-    return times
-
-
-# ---------------------------------------------------------------------------
-# Formatting & statistics
-# ---------------------------------------------------------------------------
-
-def format_time(centiseconds: float) -> str:
-    """Format centiseconds into human-readable time string."""
-    if centiseconds is None:
-        return "N/A"
-    cs = int(centiseconds)
-    if cs == 0:
-        return "0.00"
-    minutes, cs = divmod(cs, 6000)
-    seconds, hundredths = divmod(cs, 100)
-    if minutes > 0:
-        return f"{minutes}:{seconds:02d}.{hundredths:02d}"
-    return f"{seconds}.{hundredths:02d}"
-
-
-def calc_stats(times: list) -> dict:
-    """Calculate statistics from a list of times (in centiseconds)."""
-    if not times:
-        return None
-    n = len(times)
-    mean = sum(times) / n
-    variance = sum((t - mean) ** 2 for t in times) / n
-    std = math.sqrt(variance)
-    best = min(times)
-    worst = max(times)
-    return {
-        "count": n,
-        "best": best,
-        "worst": worst,
-        "mean": mean,
-        "std": std,
-    }
-
-
-def monte_carlo_winrate(
-    times1: list, times2: list, simulations: int = 50000
-) -> dict:
-    """Estimate H2H win rate using Monte Carlo simulation.
-
-    Models each competitor's performance as a normal distribution
-    fitted to their historical results.  Lower time = better.
-    """
-    stats1 = calc_stats(times1)
-    stats2 = calc_stats(times2)
-    if not stats1 or not stats2:
-        return None
-
-    mu1, sigma1 = stats1["mean"], stats1["std"]
-    mu2, sigma2 = stats2["mean"], stats2["std"]
-
-    wins1 = 0
-    wins2 = 0
-    draws = 0
-
-    for _ in range(simulations):
-        s1 = max(sigma1, 0.5)
-        s2 = max(sigma2, 0.5)
-        t1 = random.gauss(mu1, s1)
-        t2 = random.gauss(mu2, s2)
-        if t1 < t2:
-            wins1 += 1
-        elif t2 < t1:
-            wins2 += 1
-        else:
-            draws += 1
-
-    return {
-        "player1_winrate": wins1 / simulations,
-        "player2_winrate": wins2 / simulations,
-        "draw_rate": draws / simulations,
-        "stats1": {k: (format_time(v) if k != "count" else v)
-                   for k, v in stats1.items()},
-        "stats2": {k: (format_time(v) if k != "count" else v)
-                   for k, v in stats2.items()},
-    }
-
-
-# ---------------------------------------------------------------------------
-# Local person search – built from top-100 rankings per event
-# ---------------------------------------------------------------------------
-
-_SEARCH_CACHE = {}              # {wca_id: {"name":..., "country":...}}
-_SEARCH_CACHE_READY = threading.Event()
-_SEARCH_SESSION = requests.Session()
-_SEARCH_SESSION.headers["User-Agent"] = "cube-h2h-calculator/1.0"
-_RANK_TOP_N = 100
-_CACHE_FILE = "search_cache.json"
-
-
-def _load_local_cache() -> bool:
-    """Load search cache from local JSON file. Returns True if loaded."""
-    try:
-        with open(_CACHE_FILE) as f:
-            data = json.load(f)
-        if isinstance(data, dict) and len(data) > 0:
-            _SEARCH_CACHE.clear()
-            _SEARCH_CACHE.update(data)
-            _SEARCH_CACHE_READY.set()
-            return True
-    except Exception:
-        pass
-    return False
-
-
-def _save_local_cache():
-    """Persist the current search cache to a local JSON file."""
-    try:
-        with open(_CACHE_FILE, "w") as f:
-            json.dump(_SEARCH_CACHE, f, ensure_ascii=False)
-    except Exception:
-        pass
-
-
-def _build_search_cache():
-    """Background: fetch top-N ranks for every event, then load their names.
-    Then replace the global cache and persist to disk."""
-    new_cache: dict[str, dict] = {}
-    has_exception = False
-
-    # 1. Collect top-ranked person IDs from each event×type combination
-    top_ids: set[str] = set()
-    for event_id in EVENT_MAP:
-        for rank_type in ("single", "average"):
-            url = f"{WCA_API_BASE}/rank/world/{rank_type}/{event_id}.json"
-            try:
-                resp = _SEARCH_SESSION.get(url, timeout=30)
-                resp.raise_for_status()
-                for item in resp.json().get("items", [])[:_RANK_TOP_N]:
-                    top_ids.add(item["personId"])
-            except Exception as e:
-                has_exception = True
-                print(f"  (rank {rank_type}/{event_id} skipped: {e})")
-
-    print(f"  top-ranked IDs collected: {len(top_ids)}")
-
-    # 2. Fetch each person's name/country concurrently
-    fetched = 0
-    fetched_lock = threading.Lock()
-
-    def _fetch_one(pid: str):
-        nonlocal fetched, has_exception
-        try:
-            resp = _SEARCH_SESSION.get(
-                f"{WCA_API_BASE}/persons/{pid}.json", timeout=30
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            new_cache[pid] = {
-                "name": data.get("name", ""),
-                "country": data.get("country", ""),
-            }
-        except Exception:
-            has_exception = True
-        with fetched_lock:
-            fetched += 1
-            if fetched % 50 == 0:
-                print(f"  ... {fetched}/{len(top_ids)} persons indexed")
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        list(pool.map(_fetch_one, top_ids))
-
-    # 3. Merge new entries into existing cache (never remove old entries
-    #    on partial failure) and persist
-    old_count = len(_SEARCH_CACHE)
-    if not has_exception:
-        _SEARCH_CACHE.clear()
-    _SEARCH_CACHE.update(new_cache)
-    _SEARCH_CACHE_READY.set()
-    _save_local_cache()
-
-    added = len(_SEARCH_CACHE) - old_count
-    updated = len(new_cache) - added if len(new_cache) > added else 0
-    print(f"  search cache updated: {len(_SEARCH_CACHE)} players "
-          f"({added} added, {updated} refreshed)")
-
-
-def search_wca_persons(query: str) -> list:
-    """Search cached top-ranked persons by name or WCA ID."""
-    q = query.strip().lower()
-    if not q or not _SEARCH_CACHE_READY.is_set():
-        return []
-    results = []
-    for wca_id, info in _SEARCH_CACHE.items():
-        if q in info["name"].lower() or q in wca_id.lower():
-            results.append({
-                "wca_id": wca_id,
-                "name": info["name"],
-                "country_iso2": info["country"],
-            })
-            if len(results) >= 10:
-                break
-    return results
-
-
-# ---------------------------------------------------------------------------
-# H2H computation
-# ---------------------------------------------------------------------------
-
-def compute_h2h(id1: str, id2: str, event_id: str, value_type: str,
-                since_year: int = None) -> dict:
-    """Main function: fetch data, compute, return result."""
-    if id1 == id2:
-        return {"error": "Please enter two different WCA IDs."}
-
-    person1, person2 = {}, {}
-    errors = []
-
-    def fetch1():
-        nonlocal person1
-        try:
-            person1 = fetch_wca_person(id1)
-        except Exception as e:
-            errors.append(f"Player 1 ({id1}): {e}")
-
-    def fetch2():
-        nonlocal person2
-        try:
-            person2 = fetch_wca_person(id2)
-        except Exception as e:
-            errors.append(f"Player 2 ({id2}): {e}")
-
-    th1 = threading.Thread(target=fetch1)
-    th2 = threading.Thread(target=fetch2)
-    th1.start()
-    th2.start()
-    th1.join(timeout=30)
-    th2.join(timeout=30)
-
-    if errors:
-        return {"error": " | ".join(errors)}
-
-    name1 = person1.get("name", id1)
-    name2 = person2.get("name", id2)
-    country1 = person1.get("country", "")
-    country2 = person2.get("country", "")
-
-    times1 = extract_times(person1.get("results", {}), event_id,
-                           value_type, since_year)
-    times2 = extract_times(person2.get("results", {}), event_id,
-                           value_type, since_year)
-
-    if not times1:
-        return {"error": f"{name1} has no valid results for "
-                         f"{EVENT_MAP.get(event_id, event_id)} ({value_type})."}
-    if not times2:
-        return {"error": f"{name2} has no valid results for "
-                         f"{EVENT_MAP.get(event_id, event_id)} ({value_type})."}
-
-    result = monte_carlo_winrate(times1, times2)
-    if not result:
-        return {"error": "Could not calculate win rate."}
-
-    return {
-        "player1": {"id": id1, "name": name1, "country": country1},
-        "player2": {"id": id2, "name": name2, "country": country2},
-        "event": EVENT_MAP.get(event_id, event_id),
-        "event_id": event_id,
-        "type": value_type,
-        "since_year": since_year,
-        "winrate": result,
-    }
+from api import search_cache
+from computation import compute_h2h
+from const import EVENT_MAP
 
 
 # ---------------------------------------------------------------------------
 # HTTP server
 # ---------------------------------------------------------------------------
+
+PORT = 8080
 
 with open("main.html") as fp:
     HTML_PAGE = fp.read()
@@ -416,7 +80,7 @@ class H2HHandler(BaseHTTPRequestHandler):
             self._send_response(400, {"error": "Query parameter 'q' is required."})
             return
         try:
-            results = search_wca_persons(query)
+            results = search_cache.search_wca_persons(query)
             self._send_response(200, {"results": results})
         except Exception as e:
             self._send_response(500, {"error": str(e)})
@@ -444,12 +108,12 @@ class H2HHandler(BaseHTTPRequestHandler):
 
 def main():
     # 1. Load cached data from last run so search works immediately
-    if _load_local_cache():
-        print(f"Loaded {len(_SEARCH_CACHE)} players from local cache")
+    if loaded_length:=search_cache.load_local_cache() > 0:
+        print(f"Loaded {loaded_length} players from local cache")
 
     # 2. Refresh from API in the background; the old cache stays available
     print("Refreshing search cache from API in background ...")
-    threading.Thread(target=_build_search_cache, daemon=True).start()
+    search_cache.start_build_cache()
 
     server = HTTPServer(("127.0.0.1", PORT), H2HHandler)
     print(f"Cube H2H Calculator running at http://localhost:{PORT}")
