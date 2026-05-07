@@ -18,6 +18,24 @@ body {
 .header {
   text-align: center;
   padding: 40px 20px 20px;
+  position: relative;
+}
+.lang-toggle {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.lang-toggle:hover {
+  background: #334155;
+  border-color: #60a5fa;
 }
 .header h1 {
   font-size: 2rem;
@@ -396,26 +414,27 @@ body {
 <body>
 
 <div class="header">
-  <h1>Cube H2H Calculator</h1>
-  <p>Estimate head-to-head win rates between two speedcubers based on WCA results</p>
+  <button class="lang-toggle" id="langToggle" onclick="toggleLang()">中文</button>
+  <h1 data-i18n="title">Cube H2H Calculator</h1>
+  <p data-i18n="subtitle">Estimate head-to-head win rates between two speedcubers based on WCA results</p>
 </div>
 
 <div class="form-card">
   <div class="vs-row">
     <div class="player-input">
-      <label>Player 1 — Name or WCA ID</label>
-      <input type="text" id="id1" placeholder="e.g. Zemdegs or 2009ZEMD01" autocomplete="off" />
+      <label data-i18n="player1">Player 1 — Name or WCA ID</label>
+      <input type="text" id="id1" data-i18n-placeholder="ph1" placeholder="e.g. Zemdegs or 2009ZEMD01" autocomplete="off" />
       <div class="search-dropdown" id="dropdown1"></div>
     </div>
-    <span style="color:#64748b;font-weight:700;font-size:1.1rem;padding-bottom:6px;">VS</span>
+    <span style="color:#64748b;font-weight:700;font-size:1.1rem;padding-bottom:6px;" data-i18n="vs">VS</span>
     <div class="player-input">
-      <label>Player 2 — Name or WCA ID</label>
-      <input type="text" id="id2" placeholder="e.g. Tymon or 2015KOLM01" autocomplete="off" />
+      <label data-i18n="player2">Player 2 — Name or WCA ID</label>
+      <input type="text" id="id2" data-i18n-placeholder="ph2" placeholder="e.g. Tymon or 2015KOLM01" autocomplete="off" />
       <div class="search-dropdown" id="dropdown2"></div>
     </div>
   </div>
   <div class="options-row">
-    <select id="event">
+    <select id="event" data-i18n-options="333,222,444,555,333oh,333bf">
       <option value="333">3x3x3 Cube</option>
       <option value="222">2x2x2 Cube</option>
       <option value="444">4x4x4 Cube</option>
@@ -423,13 +442,13 @@ body {
       <option value="333oh">3x3x3 One-Handed</option>
       <option value="333bf">3x3x3 Blindfolded</option>
     </select>
-    <select id="valuetype">
+    <select id="valuetype" data-i18n-options="single,average">
       <option value="single">Single</option>
       <option value="average">Average (ao5 of round)</option>
     </select>
   </div>
   <div class="options-row">
-    <select id="timerange">
+    <select id="timerange" data-i18n-options="allTime,since,since,since,since">
       <option value="-1">All time</option>
       <option value="0"></option>
       <option value="1"></option>
@@ -445,16 +464,16 @@ body {
         }
       }
     </script>
-    <select id="rng">
+    <select id="rng" data-i18n-options="normal,history">
       <option value="normal">Normal distribution</option>
       <option value="history">Raw sampling</option>
     </select>
   </div>
-  <button class="btn-calc" id="btnCalc" onclick="doCalc()">Calculate Win Rate</button>
+  <button class="btn-calc" id="btnCalc" onclick="doCalc()" data-i18n="calc">Calculate Win Rate</button>
 </div>
 
 <div class="loading" id="loading">
-  <span class="spinner"></span> Fetching WCA data & computing...
+  <span class="spinner"></span> <span data-i18n="loading">Fetching WCA data &amp; computing...</span>
 </div>
 <div class="error-msg" id="errorMsg"></div>
 
@@ -465,7 +484,7 @@ body {
   </div>
   <div class="players-row">
     <div><span class="player-flag" id="flag1"></span><span class="player-name" id="pname1"></span></div>
-    <span class="vs-label">VS</span>
+    <span class="vs-label" data-i18n="vs">VS</span>
     <div><span class="player-name" id="pname2"></span><span class="player-flag" id="flag2"></span></div>
   </div>
   <div class="winrate-bar">
@@ -474,22 +493,22 @@ body {
   </div>
   <div class="draw-info" id="drawInfo"></div>
   <div class="match-section">
-    <h3>Match Simulation</h3>
+    <h3 data-i18n="match_sim">Match Simulation</h3>
     <div class="match-format-row">
-      <span class="match-format-label">Format:</span>
-      <select id="matchFormat" onchange="updateMatch()">
+      <span class="match-format-label" data-i18n="format">Format:</span>
+      <select id="matchFormat" onchange="updateMatch()" data-i18n-options="format_1,format_3,format_5">
         <option value="1">1 set (BO5) — first to 3 games</option>
         <option value="3">Best of 3 — first to 2 sets</option>
         <option value="5">Best of 5 — first to 3 sets</option>
       </select>
     </div>
     <div class="match-score-row">
-      <span class="match-score-label">Current set (games):</span>
+      <span class="match-score-label" data-i18n="current_set">Current set (games):</span>
       <input type="number" class="match-score-input" id="gameS1" value="0" min="0" max="2" onchange="updateMatch()" />
       <span class="match-vs">–</span>
       <input type="number" class="match-score-input" id="gameS2" value="0" min="0" max="2" onchange="updateMatch()" />
     </div>
-    <div class="match-bar-label" id="setWinLabel">Current set win probability:</div>
+    <div class="match-bar-label" id="setWinLabel" data-i18n="set_label">Current set win probability:</div>
     <div class="match-bar" id="setWinBar">
       <div class="match-bar-left" id="setWinLeft" style="width:50%"></div>
       <div class="match-bar-right" id="setWinRight" style="width:50%"></div>
@@ -498,12 +517,12 @@ body {
     <div id="setScoreSection" style="display:none">
       <div class="set-score-divider"></div>
       <div class="match-score-row">
-        <span class="match-score-label">Set score:</span>
+        <span class="match-score-label" data-i18n="set_score">Set score:</span>
         <input type="number" class="match-score-input" id="setS1" value="0" min="0" onchange="updateMatch()" />
         <span class="match-vs">–</span>
         <input type="number" class="match-score-input" id="setS2" value="0" min="0" onchange="updateMatch()" />
       </div>
-      <div class="match-bar-label">Overall match win probability:</div>
+      <div class="match-bar-label" data-i18n="match_prob">Overall match win probability:</div>
       <div class="match-bar" id="matchWinBar">
         <div class="match-bar-left" id="matchWinLeft" style="width:50%"></div>
         <div class="match-bar-right" id="matchWinRight" style="width:50%"></div>
@@ -514,29 +533,141 @@ body {
   <div class="stats-grid">
     <div class="stats-box">
       <h3 id="statsTitle1"></h3>
-      <div class="stat-row"><span class="label">Samples</span><span class="value" id="s1count"></span></div>
-      <div class="stat-row"><span class="label">Best</span><span class="value" id="s1best"></span></div>
-      <div class="stat-row"><span class="label">Worst</span><span class="value" id="s1worst"></span></div>
-      <div class="stat-row"><span class="label">Mean</span><span class="value" id="s1mean"></span></div>
-      <div class="stat-row"><span class="label">Std Dev</span><span class="value" id="s1std"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_samples">Samples</span><span class="value" id="s1count"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_best">Best</span><span class="value" id="s1best"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_worst">Worst</span><span class="value" id="s1worst"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_mean">Mean</span><span class="value" id="s1mean"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_std">Std Dev</span><span class="value" id="s1std"></span></div>
     </div>
     <div class="stats-box">
       <h3 id="statsTitle2"></h3>
-      <div class="stat-row"><span class="label">Samples</span><span class="value" id="s2count"></span></div>
-      <div class="stat-row"><span class="label">Best</span><span class="value" id="s2best"></span></div>
-      <div class="stat-row"><span class="label">Worst</span><span class="value" id="s2worst"></span></div>
-      <div class="stat-row"><span class="label">Mean</span><span class="value" id="s2mean"></span></div>
-      <div class="stat-row"><span class="label">Std Dev</span><span class="value" id="s2std"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_samples">Samples</span><span class="value" id="s2count"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_best">Best</span><span class="value" id="s2best"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_worst">Worst</span><span class="value" id="s2worst"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_mean">Mean</span><span class="value" id="s2mean"></span></div>
+      <div class="stat-row"><span class="label" data-i18n="stats_std">Std Dev</span><span class="value" id="s2std"></span></div>
     </div>
   </div>
 </div>
 
 <div class="footer">
-  Data sourced from <a href="https://github.com/robiningelbrecht/wca-rest-api" target="_blank" style="color:#60a5fa">unofficial WCA REST API</a> (Robin Ingelbrecht / wca-rest-api).
-  Win rates estimated via Monte Carlo simulation over 50,000 trials.
+  <span data-i18n="footer1">Data sourced from</span> <a href="https://github.com/robiningelbrecht/wca-rest-api" target="_blank" style="color:#60a5fa">unofficial WCA REST API</a> (Robin Ingelbrecht / wca-rest-api).<br>
+  <span data-i18n="footer2">Win rates estimated via Monte Carlo simulation over 50,000 trials using normal distribution fit.</span>
 </div>
 
 <script>
+// ═══════════════════════════════════════════
+// i18n — Chinese / English translations
+// ═══════════════════════════════════════════
+const I18N = {
+  zh: {
+    title:'魔方H2H胜率计算器',
+    subtitle:'基于WCA成绩估算两位速拧选手之间的对战胜率',
+    player1:'选手1 — 姓名或WCA ID',
+    player2:'选手2 — 姓名或WCA ID',
+    vs:'VS',
+    ph1:'例如 Zemdegs 或 2009ZEMD01',
+    ph2:'例如 Tymon 或 2015KOLM01',
+    '333':'三阶','222':'二阶','444':'四阶','555':'五阶',
+    '333oh':'三阶单手','333bf':'三阶盲拧',
+    single:'单次',average:'平均 (轮次ao5)',
+    allTime:'全部时间',since:'自 {year} 年以来',
+    normal:'正态分布',history:'原始采样',
+    calc:'计算胜率',
+    loading:'正在获取WCA数据并计算...',
+    stats_samples:'样本数',stats_best:'最佳',stats_worst:'最差',
+    stats_mean:'均值',stats_std:'标准差',
+    draw:'平局: {pct}% ({n} 次蒙特卡洛模拟)',
+    match_sim:'对局模拟',format:'赛制:',
+    format_1:'1盘 (五局三胜)',format_3:'三盘两胜',format_5:'五盘三胜',
+    current_set:'当前盘 (局分):',set_score:'盘分:',
+    match_prob:'全场比赛胜率:',
+    set_label:'当前盘胜率:',set_fresh:'新开局胜率:',
+    set_decided:'该盘已决出 ({who}赢得3局)',
+    set_decided_short:'该盘已决出 ({who}获胜)',
+    match_decided:'比赛已决出 ({who}赢得{n}盘)',
+    footer1:'数据来源:',
+    footer2:'胜率通过蒙特卡洛模拟基于正态分布拟合计算，共50,000次试验。',
+  },
+  en: {
+    title:'Cube H2H Calculator',
+    subtitle:'Estimate head-to-head win rates between two speedcubers based on WCA results',
+    player1:'Player 1 — Name or WCA ID',
+    player2:'Player 2 — Name or WCA ID',
+    vs:'VS',
+    ph1:'e.g. Zemdegs or 2009ZEMD01',
+    ph2:'e.g. Tymon or 2015KOLM01',
+    '333':'3x3x3 Cube','222':'2x2x2 Cube','444':'4x4x4 Cube','555':'5x5x5 Cube',
+    '333oh':'3x3x3 One-Handed','333bf':'3x3x3 Blindfolded',
+    single:'Single',average:'Average (ao5 of round)',
+    allTime:'All time',since:'Since {year}',
+    normal:'Normal distribution',history:'Raw sampling',
+    calc:'Calculate Win Rate',
+    loading:'Fetching WCA data &amp; computing...',
+    stats_samples:'Samples',stats_best:'Best',stats_worst:'Worst',
+    stats_mean:'Mean',stats_std:'Std Dev',
+    draw:'Draw: {pct}% ({n} Monte Carlo simulations)',
+    match_sim:'Match Simulation',format:'Format:',
+    format_1:'1 set (BO5) — first to 3 games',
+    format_3:'Best of 3 — first to 2 sets',
+    format_5:'Best of 5 — first to 3 sets',
+    current_set:'Current set (games):',set_score:'Set score:',
+    match_prob:'Overall match win probability:',
+    set_label:'Current set win probability:',set_fresh:'Fresh set win probability:',
+    set_decided:'Set already decided ({who} won 3 games)',
+    set_decided_short:'Set already decided ({who} won)',
+    match_decided:'Match already decided ({who} won {n} sets)',
+    footer1:'Data sourced from',
+    footer2:'Win rates estimated via Monte Carlo simulation over 50,000 trials using normal distribution fit.',
+  }
+};
+
+let currentLang = localStorage.getItem('lang') || 'en';
+
+function t(k, params) {
+  let s = I18N[currentLang][k];
+  if (s === undefined) return k;
+  if (params) for (const [p, v] of Object.entries(params)) s = s.replace('{'+p+'}', v);
+  return s;
+}
+
+function applyLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('lang', lang);
+  document.getElementById('langToggle').textContent = lang === 'zh' ? 'EN' : '中文';
+
+  // Static elements with data-i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  // Placeholders
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  // Select options
+  document.querySelectorAll('[data-i18n-options]').forEach(sel => {
+    const keys = sel.dataset.i18nOptions.split(',');
+    for (let i = 0; i < sel.options.length && i < keys.length; i++) {
+      const k = keys[i].trim();
+      if (k === 'since') {
+        const cy = new Date().getFullYear();
+        sel.options[i].textContent = t('since', {year: cy - parseInt(sel.options[i].value)});
+      } else {
+        sel.options[i].textContent = t(k);
+      }
+    }
+  });
+
+  // Re-render match text if result is showing
+  if (document.getElementById('resultCard').classList.contains('show')) {
+    if (window._showResultData) showResult(window._showResultData);
+  }
+}
+
+function toggleLang() { applyLang(currentLang === 'zh' ? 'en' : 'zh'); }
+
+// ═══════════════════════════════════════════
+
 function flagEmoji(country) {
   if (!country || country.length !== 2) return '';
   const codePoints = country.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0));
@@ -626,7 +757,7 @@ function doCalc() {
   document.getElementById('resultCard').classList.remove('show');
   document.getElementById('btnCalc').disabled = true;
 
-  const params = new URLSearchParams({ id1, id2, event, type: valuetype, timerange: document.getElementById('timerange').value });
+  const params = new URLSearchParams({ id1, id2, event, type: valuetype, timerange: document.getElementById('timerange').value, rng: document.getElementById('rng').value });
   fetch('/api/h2h?' + params)
     .then(r => r.json())
     .then(data => {
@@ -652,19 +783,23 @@ function showError(msg) {
 }
 
 function showResult(d) {
+  window._showResultData = d;
   const wr = d.winrate;
   const p1w = (wr.player1_winrate * 100).toFixed(1);
   const p2w = (wr.player2_winrate * 100).toFixed(1);
   const drawP = (wr.draw_rate * 100).toFixed(2);
 
+  const evtTrans = t(d.event);
+  const typeTrans = t(d.type);
+  const timerangeSel = document.getElementById('timerange');
+  const timerangeText = timerangeSel.options[timerangeSel.selectedIndex].textContent;
   document.getElementById('matchTitle').textContent = d.player1.name + ' vs ' + d.player2.name;
-  document.getElementById('eventLabel').textContent = d.event + ' — ' + (d.type === 'single' ? 'Single' : 'Average') + ' — ' + document.getElementById('timerange').options[document.getElementById('timerange').selectedIndex].text;
+  document.getElementById('eventLabel').textContent = evtTrans + ' — ' + typeTrans + ' — ' + timerangeText;
   document.getElementById('flag1').textContent = flagEmoji(d.player1.country);
   document.getElementById('flag2').textContent = flagEmoji(d.player2.country);
   document.getElementById('pname1').textContent = d.player1.name;
   document.getElementById('pname2').textContent = d.player2.name;
 
-  // Minimum 5% width so label is visible
   const w1 = Math.max(5, parseFloat(p1w));
   const w2 = Math.max(5, parseFloat(p2w));
   const total = w1 + w2;
@@ -672,7 +807,7 @@ function showResult(d) {
   document.getElementById('wrLeft').textContent = p1w + '%';
   document.getElementById('wrRight').style.width = (w2 / total * 100) + '%';
   document.getElementById('wrRight').textContent = p2w + '%';
-  document.getElementById('drawInfo').textContent = 'Draw: ' + drawP + '% (50,000 Monte Carlo simulations)';
+  document.getElementById('drawInfo').textContent = t('draw', {pct: drawP, n: '50,000'});
 
   const s1 = wr.stats1;
   const s2 = wr.stats2;
@@ -692,16 +827,12 @@ function showResult(d) {
 
   document.getElementById('resultCard').classList.add('show');
 
-  // Store single-game win rates for match simulation
   window._p1winrate = wr.player1_winrate;
   window._p2winrate = wr.player2_winrate;
   updateMatch();
 }
 
 // Probability to win N "items" before opponent wins M (DP)
-// p: probability to win one item (excluding draws)
-// needs1: items P1 still needs
-// needs2: items P2 still needs
 function needsN(p, needs1, needs2) {
   if (needs1 <= 0) return 1.0;
   if (needs2 <= 0) return 0.0;
@@ -725,9 +856,8 @@ function updateMatch() {
   const p1_eff = denom > 0 ? p1 / denom : 0.5;
 
   const format = parseInt(document.getElementById('matchFormat').value) || 1;
-  const firstTo = (format + 1) / 2;  // 1→1, 3→2, 5→3
+  const firstTo = (format + 1) / 2;
 
-  // Read game score (小比分): 0–2 each
   const g1 = Math.min(2, Math.max(0, parseInt(document.getElementById('gameS1').value) || 0));
   const g2 = Math.min(2, Math.max(0, parseInt(document.getElementById('gameS2').value) || 0));
   document.getElementById('gameS1').value = g1;
@@ -735,24 +865,22 @@ function updateMatch() {
 
   // --- Current set win probability ---
   let p_set_ongoing;
-  let setLabel = 'Current set win probability:';
+  let setLabel;
   if (g1 >= 3 || g2 >= 3) {
     p_set_ongoing = g1 >= 3 ? 1.0 : 0.0;
     document.getElementById('setWinEarly').style.display = 'block';
     document.getElementById('setWinEarly').textContent =
-      'Set already decided (' + (g1 >= 3 ? 'P1' : 'P2') + ' won 3 games)';
-    setLabel = 'Current set (decided):';
+      t('set_decided', {who: g1 >= 3 ? 'P1' : 'P2'});
+    setLabel = t('set_label');
   } else {
     document.getElementById('setWinEarly').style.display = 'none';
-    if (g1 === 0 && g2 === 0) setLabel = 'Fresh set win probability:';
+    setLabel = (g1 === 0 && g2 === 0) ? t('set_fresh') : t('set_label');
     p_set_ongoing = needsN(p1_eff, 3 - g1, 3 - g2);
   }
   document.getElementById('setWinLabel').textContent = setLabel;
-
-  // Render set win bar
   _renderBar('setWinLeft', 'setWinRight', p_set_ongoing, 'setWinBar');
 
-  // --- Set score section visibility ---
+  // --- Set score section ---
   const setSection = document.getElementById('setScoreSection');
   if (format === 1) {
     setSection.style.display = 'none';
@@ -760,39 +888,31 @@ function updateMatch() {
   }
   setSection.style.display = 'block';
 
-  // Read set score and cap to valid range
   const maxSet = firstTo - 1;
   const s1 = Math.min(maxSet, Math.max(0, parseInt(document.getElementById('setS1').value) || 0));
   const s2 = Math.min(maxSet, Math.max(0, parseInt(document.getElementById('setS2').value) || 0));
   document.getElementById('setS1').value = s1;
   document.getElementById('setS2').value = s2;
 
-  // Check if set score already decides the match
   if (s1 >= firstTo) {
     document.getElementById('setWinEarly').style.display = 'block';
-    document.getElementById('setWinEarly').textContent = 'Set already decided (P1 won)';
+    document.getElementById('setWinEarly').textContent = t('set_decided_short', {who: 'P1'});
     _renderBar('matchWinLeft', 'matchWinRight', 1.0, 'matchWinBar');
     document.getElementById('matchWinEarly').style.display = 'block';
-    document.getElementById('matchWinEarly').textContent = 'Match already decided (P1 won ' + firstTo + ' sets)';
+    document.getElementById('matchWinEarly').textContent = t('match_decided', {who: 'P1', n: firstTo});
     return;
   }
   if (s2 >= firstTo) {
     document.getElementById('setWinEarly').style.display = 'block';
-    document.getElementById('setWinEarly').textContent = 'Set already decided (P2 won)';
+    document.getElementById('setWinEarly').textContent = t('set_decided_short', {who: 'P2'});
     _renderBar('matchWinLeft', 'matchWinRight', 0.0, 'matchWinBar');
     document.getElementById('matchWinEarly').style.display = 'block';
-    document.getElementById('matchWinEarly').textContent = 'Match already decided (P2 won ' + firstTo + ' sets)';
+    document.getElementById('matchWinEarly').textContent = t('match_decided', {who: 'P2', n: firstTo});
     return;
   }
   document.getElementById('matchWinEarly').style.display = 'none';
 
-  // Probability of winning a fresh set (from 0-0)
   const p_set_fresh = needsN(p1_eff, 3, 3);
-
-  // Overall match win probability:
-  // First, the ongoing set resolves: P1 wins it with p_set_ongoing,
-  // then continues from (s1+1, s2) vs (s1, s2+1).
-  // Remaining sets are all fresh.
   const p_match = p_set_ongoing * needsN(p_set_fresh, firstTo - (s1 + 1), firstTo - s2)
                 + (1 - p_set_ongoing) * needsN(p_set_fresh, firstTo - s1, firstTo - (s2 + 1));
 
@@ -800,7 +920,6 @@ function updateMatch() {
 }
 
 function _renderBar(leftId, rightId, prob1, barId) {
-  const bar = document.getElementById(barId);
   const left = document.getElementById(leftId);
   const right = document.getElementById(rightId);
 
@@ -815,14 +934,14 @@ function _renderBar(leftId, rightId, prob1, barId) {
     right.style.width = '100%';
     right.textContent = '100%';
   } else {
-    const pct1 = parseFloat((prob1 * 100).toFixed(1));
-    const pct2 = parseFloat(((1 - prob1) * 100).toFixed(1));
-    const pct1_capped = Math.max(5, pct1);
-    const pct2_capped = Math.max(5, pct2);
-    const total = pct1 + pct2;
-    left.style.width = (pct1_capped / total * 100) + '%';
+    const pct1 = (prob1 * 100).toFixed(1);
+    const pct2 = ((1 - prob1) * 100).toFixed(1);
+    const c1 = Math.max(5, parseFloat(pct1));
+    const c2 = Math.max(5, parseFloat(pct2));
+    const total = parseFloat(pct1) + parseFloat(pct2);
+    left.style.width = (c1 / (c1 + c2) * 100) + '%';
     left.textContent = pct1 + '%';
-    right.style.width = (pct2_capped / total * 100) + '%';
+    right.style.width = (c2 / (c1 + c2) * 100) + '%';
     right.textContent = pct2 + '%';
   }
 }
@@ -831,6 +950,9 @@ function _renderBar(leftId, rightId, prob1, barId) {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Enter') doCalc();
 });
+
+// Apply saved language on load
+applyLang(currentLang);
 </script>
 </body>
 </html>
