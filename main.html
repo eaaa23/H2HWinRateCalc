@@ -269,6 +269,27 @@ body {
   font-weight: 700;
 }
 
+.bpa-wpa-section {
+  text-align: center;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  background: #0f172a;
+  border-radius: 10px;
+}
+.bpa-wpa-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.bpa-wpa-label {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+.bpa-wpa-label strong {
+  color: #e2e8f0;
+  font-size: 0.95rem;
+}
+
 .winrate-bar {
   display: flex;
   height: 48px;
@@ -510,21 +531,21 @@ body {
     <div class="ao5-row">
       <label data-i18n="ao5_p1">Player 1 attempts (time in seconds, or DNF)</label>
       <div class="ao5-attempts">
-        <input type="text" class="ao5-input" id="p1a1" placeholder="1" autocomplete="off">
-        <input type="text" class="ao5-input" id="p1a2" placeholder="2" autocomplete="off">
-        <input type="text" class="ao5-input" id="p1a3" placeholder="3" autocomplete="off">
-        <input type="text" class="ao5-input" id="p1a4" placeholder="4" autocomplete="off">
-        <input type="text" class="ao5-input" id="p1a5" placeholder="5" autocomplete="off">
+        <input type="text" class="ao5-input" id="p1a1" placeholder="1" autocomplete="off" oninput="updateBPAWPA()">
+        <input type="text" class="ao5-input" id="p1a2" placeholder="2" autocomplete="off" oninput="updateBPAWPA()">
+        <input type="text" class="ao5-input" id="p1a3" placeholder="3" autocomplete="off" oninput="updateBPAWPA()">
+        <input type="text" class="ao5-input" id="p1a4" placeholder="4" autocomplete="off" oninput="updateBPAWPA()">
+        <input type="text" class="ao5-input" id="p1a5" placeholder="5" autocomplete="off" oninput="updateBPAWPA()">
       </div>
     </div>
     <div class="ao5-row">
       <label data-i18n="ao5_p2">Player 2 attempts (time in seconds, or DNF)</label>
       <div class="ao5-attempts">
-        <input type="text" class="ao5-input" id="p2a1" placeholder="1" autocomplete="off">
-        <input type="text" class="ao5-input" id="p2a2" placeholder="2" autocomplete="off">
-        <input type="text" class="ao5-input" id="p2a3" placeholder="3" autocomplete="off">
-        <input type="text" class="ao5-input" id="p2a4" placeholder="4" autocomplete="off">
-        <input type="text" class="ao5-input" id="p2a5" placeholder="5" autocomplete="off">
+        <input type="text" class="ao5-input" id="p2a1" placeholder="1" autocomplete="off" oninput="updateBPAWPA()">
+        <input type="text" class="ao5-input" id="p2a2" placeholder="2" autocomplete="off" oninput="updateBPAWPA()">
+        <input type="text" class="ao5-input" id="p2a3" placeholder="3" autocomplete="off" oninput="updateBPAWPA()">
+        <input type="text" class="ao5-input" id="p2a4" placeholder="4" autocomplete="off" oninput="updateBPAWPA()">
+        <input type="text" class="ao5-input" id="p2a5" placeholder="5" autocomplete="off" oninput="updateBPAWPA()">
       </div>
     </div>
   </div>
@@ -545,6 +566,12 @@ body {
     <div><span class="player-flag" id="flag1"></span><span class="player-name" id="pname1"></span></div>
     <span class="vs-label" data-i18n="vs">VS</span>
     <div><span class="player-name" id="pname2"></span><span class="player-flag" id="flag2"></span></div>
+  </div>
+  <div class="bpa-wpa-section" id="bpaWpaSection" style="display:none">
+    <div class="bpa-wpa-row">
+      <span class="bpa-wpa-label"><span data-i18n="bpa_label">BPA</span>: <strong id="bpa1">-</strong> &nbsp; <span data-i18n="wpa_label">WPA</span>: <strong id="wpa1">-</strong></span>
+      <span class="bpa-wpa-label"><span data-i18n="bpa_label">BPA</span>: <strong id="bpa2">-</strong> &nbsp; <span data-i18n="wpa_label">WPA</span>: <strong id="wpa2">-</strong></span>
+    </div>
   </div>
   <div class="winrate-bar">
     <div class="wr-left" id="wrLeft" style="width:50%"></div>
@@ -633,6 +660,7 @@ const I18N = {
     allTime:'全部时间',since:'自 {year} 年以来',
     normal:'正态分布',history:'原始采样',
     calc:'计算胜率',
+    bpa_label:'BPA',wpa_label:'WPA',
     mode_h2h:'H2H',mode_ao5:'AO5',
     ao5_p1:'选手1 尝试 (秒 或 DNF)',
     ao5_p2:'选手2 尝试 (秒 或 DNF)',
@@ -665,6 +693,7 @@ const I18N = {
     allTime:'All time',since:'Since {year}',
     normal:'Normal distribution',history:'Raw sampling',
     calc:'Calculate Win Rate',
+    bpa_label:'BPA',wpa_label:'WPA',
     mode_h2h:'H2H',mode_ao5:'AO5',
     ao5_p1:'Player 1 attempts (sec or DNF)',
     ao5_p2:'Player 2 attempts (sec or DNF)',
@@ -914,6 +943,62 @@ function showResult(d) {
   window._p1winrate = wr.player1_winrate;
   window._p2winrate = wr.player2_winrate;
   updateMatch();
+  updateBPAWPA();
+}
+
+function updateBPAWPA() {
+  const section = document.getElementById('bpaWpaSection');
+  if (window._calcMode !== 'ao5') {
+    section.style.display = 'none';
+    return;
+  }
+
+  // Collect attempts from the form inputs
+  const p1a = [], p2a = [];
+  for (let i = 1; i <= 5; i++) {
+    p1a.push(document.getElementById('p1a' + i).value.trim());
+    p2a.push(document.getElementById('p2a' + i).value.trim());
+  }
+
+  const r1 = _calcBPAWPA(p1a);
+  const r2 = _calcBPAWPA(p2a);
+
+  if (r1 && r2) {
+    section.style.display = 'block';
+    document.getElementById('bpa1').textContent = r1.bpa;
+    document.getElementById('wpa1').textContent = r1.wpa;
+    document.getElementById('bpa2').textContent = r2.bpa;
+    document.getElementById('wpa2').textContent = r2.wpa;
+  } else {
+    section.style.display = 'none';
+  }
+}
+
+function _fmtFloor(val) {
+  return (Math.floor(val * 100) / 100).toFixed(2);
+}
+
+function _calcBPAWPA(attempts) {
+  // Returns {bpa, wpa} if exactly 4 known attempts, else null.
+  const filled = attempts.filter(a => a !== '');
+  if (filled.length !== 4) return null;
+
+  const dnfCount = filled.filter(a => a.toUpperCase() === 'DNF').length;
+  if (dnfCount >= 2) return { bpa: 'DNF', wpa: 'DNF' };
+
+  const times = filled
+    .filter(a => a.toUpperCase() !== 'DNF')
+    .map(parseFloat)
+    .sort((a, b) => a - b);
+
+  if (dnfCount === 1) {
+    const bpa = (times[0] + times[1] + times[2]) / 3;
+    return { bpa: _fmtFloor(bpa), wpa: 'DNF' };
+  }
+
+  const bpa = (times[0] + times[1] + times[2]) / 3;
+  const wpa = (times[1] + times[2] + times[3]) / 3;
+  return { bpa: _fmtFloor(bpa), wpa: _fmtFloor(wpa) };
 }
 
 // Probability to win N "items" before opponent wins M (DP)
