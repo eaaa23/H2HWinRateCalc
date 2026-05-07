@@ -53,6 +53,13 @@ def extract_times(results: dict, event_id: str, value_type: str,
 
         round_list = events.get(event_id, [])
         for rd in round_list:
+            # Refuse results in H2H rounds.
+            # During an attempt in a H2H round, the audience
+            # is allowed to cheer when one competitor completed the attempt first.
+            # This may affect another competitor, making H2H results has statistical bias.
+            if rd.get("format", "").lower().startswith("head"):
+                continue
+
             vals = []
             if value_type == "average":
                 vals = [rd.get("average", 0)]
