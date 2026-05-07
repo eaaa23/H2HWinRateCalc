@@ -1,6 +1,8 @@
 import math
 import random
+import time
 import threading
+from collections.abc import Callable
 
 from api import fetch_wca_person, extract_times
 from const import EVENT_MAP
@@ -20,10 +22,8 @@ def format_time(centiseconds: float) -> str:
     return f"{seconds}.{hundredths:02d}"
 
 
-def calc_stats(times: list) -> dict | None:
+def calc_stats(times: list) -> dict:
     """Calculate statistics from a list of times (in centiseconds)."""
-    if not times:
-        return None
     n = len(times)
     mean = sum(times) / n
     variance = sum((t - mean) ** 2 for t in times) / n
@@ -39,50 +39,48 @@ def calc_stats(times: list) -> dict | None:
     }
 
 
-def monte_carlo_winrate(
-    times1: list, times2: list, simulations: int = 50000
-) -> dict:
+def format_stats(stats: dict) -> dict:
+    return {k: (format_time(v) if k != "count" else v)
+            for k, v in stats.items()}
+
+
+def monte_carlo_winrate(rng1: Callable[[], int | float],
+                        rng2: Callable[[], int | float],
+                        simulations: int = 50000) -> dict:
     """Estimate H2H win rate using Monte Carlo simulation.
 
-    Models each competitor's performance as a normal distribution
-    fitted to their historical results.  Lower time = better.
-    """
-    stats1 = calc_stats(times1)
-    stats2 = calc_stats(times2)
-    if not stats1 or not stats2:
-        return None
-
-    mu1, sigma1 = stats1["mean"], stats1["std"]
-    mu2, sigma2 = stats2["mean"], stats2["std"]
-
+        Models each competitor's performance as a random number generator.
+        It could be a normal distribution or random choice from historical results.
+        """
     wins1 = 0
     wins2 = 0
     draws = 0
-
     for _ in range(simulations):
-        s1 = max(sigma1, 0.5)
-        s2 = max(sigma2, 0.5)
-        t1 = random.gauss(mu1, s1)
-        t2 = random.gauss(mu2, s2)
+        t1 = rng1()
+        t2 = rng2()
         if t1 < t2:
             wins1 += 1
         elif t2 < t1:
             wins2 += 1
         else:
             draws += 1
-
     return {
         "player1_winrate": wins1 / simulations,
         "player2_winrate": wins2 / simulations,
         "draw_rate": draws / simulations,
-        "stats1": {k: (format_time(v) if k != "count" else v)
-                   for k, v in stats1.items()},
-        "stats2": {k: (format_time(v) if k != "count" else v)
-                   for k, v in stats2.items()},
     }
 
 
+def normal_distribution(stats: dict) -> Callable[[], int | float]:
+    return lambda: random.gauss(stats["mean"], stats["std"])
+
+
+def random_historical(times: list) -> Callable[[], int | float]:
+    return lambda: random.choice(times)
+
+
 def compute_h2h(id1: str, id2: str, event_id: str, value_type: str,
+                rng_type: str,
                 since_year: int = None) -> dict:
     """Main function: fetch data, compute, return result."""
     if id1 == id2:
@@ -132,9 +130,20 @@ def compute_h2h(id1: str, id2: str, event_id: str, value_type: str,
         return {"error": f"{name2} has no valid results for "
                          f"{EVENT_MAP.get(event_id, event_id)} ({value_type})."}
 
-    result = monte_carlo_winrate(times1, times2)
+    stats1, stats2 = calc_stats(times1), calc_stats(times2)
+    if rng_type == "normal":
+        rng1, rng2 = normal_distribution(stats1), normal_distribution(stats2)
+    elif rng_type == "history":
+        rng1, rng2 = random_historical(times1), random_historical(times2)
+    else:
+        return {"error": f"{rng_type} is not a valid RNG type."}
+
+    result = monte_carlo_winrate(rng1, rng2)
     if not result:
         return {"error": "Could not calculate win rate."}
+
+    result["stats1"] = format_stats(stats1)
+    result["stats2"] = format_stats(stats2)
 
     return {
         "player1": {"id": id1, "name": name1, "country": country1},

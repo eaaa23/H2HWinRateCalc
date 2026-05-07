@@ -47,6 +47,7 @@ class H2HHandler(BaseHTTPRequestHandler):
         id2 = params.get("id2", [""])[0]
         event = params.get("event", ["333"])[0]
         value_type = params.get("type", ["single"])[0]
+        rng_type = params.get("rng", ["history"])[0]
         timerange_str = params.get("timerange", ["-1"])[0]
 
         if not id1 or not id2:
@@ -69,7 +70,7 @@ class H2HHandler(BaseHTTPRequestHandler):
             pass
 
         try:
-            result = compute_h2h(id1, id2, event, value_type, since_year)
+            result = compute_h2h(id1, id2, event, value_type, rng_type, since_year)
             self._send_response(200, result)
         except Exception as e:
             self._send_response(500, {"error": str(e)})

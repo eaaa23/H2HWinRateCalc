@@ -426,6 +426,8 @@ body {
       <option value="single">Single</option>
       <option value="average">Average (ao5 of round)</option>
     </select>
+  </div>
+  <div class="options-row">
     <select id="timerange">
       <option value="-1">All time</option>
       <option value="0"></option>
@@ -442,6 +444,10 @@ body {
         }
       }
     </script>
+    <select id="rng">
+      <option value="normal">Normal distribution</option>
+      <option value="history">Raw sampling</option>
+    </select>
   </div>
   <button class="btn-calc" id="btnCalc" onclick="doCalc()">Calculate Win Rate</button>
 </div>
