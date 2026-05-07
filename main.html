@@ -127,6 +127,41 @@ body {
   flex-wrap: wrap;
 }
 .options-row + .options-row { margin-top: 8px; }
+.ao5-section {
+  margin-top: 16px;
+}
+.ao5-row {
+  margin-bottom: 10px;
+}
+.ao5-row label {
+  display: block;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+.ao5-attempts {
+  display: flex;
+  gap: 8px;
+}
+.ao5-input {
+  width: 56px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.ao5-input:focus {
+  border-color: #60a5fa;
+}
+.ao5-input::placeholder {
+  color: #475569;
+  font-size: 0.8rem;
+}
 .options-row select {
   flex: 1;
   min-width: 140px;
@@ -444,9 +479,9 @@ body {
       <option value="333oh">3x3x3 One-Handed</option>
       <option value="333bf">3x3x3 Blindfolded</option>
     </select>
-    <select id="valuetype" data-i18n-options="single,average">
-      <option value="single">Single</option>
-      <option value="average">Average (ao5 of round)</option>
+    <select id="mode" data-i18n-options="mode_h2h,mode_ao5" onchange="onModeChange()">
+      <option value="h2h">H2H</option>
+      <option value="ao5">AO5</option>
     </select>
   </div>
   <div class="options-row">
@@ -470,6 +505,28 @@ body {
       <option value="normal">Normal distribution</option>
       <option value="history">Raw sampling</option>
     </select>
+  </div>
+  <div class="ao5-section" id="ao5Section" style="display:none">
+    <div class="ao5-row">
+      <label data-i18n="ao5_p1">Player 1 attempts (time in seconds, or DNF)</label>
+      <div class="ao5-attempts">
+        <input type="text" class="ao5-input" id="p1a1" placeholder="1" autocomplete="off">
+        <input type="text" class="ao5-input" id="p1a2" placeholder="2" autocomplete="off">
+        <input type="text" class="ao5-input" id="p1a3" placeholder="3" autocomplete="off">
+        <input type="text" class="ao5-input" id="p1a4" placeholder="4" autocomplete="off">
+        <input type="text" class="ao5-input" id="p1a5" placeholder="5" autocomplete="off">
+      </div>
+    </div>
+    <div class="ao5-row">
+      <label data-i18n="ao5_p2">Player 2 attempts (time in seconds, or DNF)</label>
+      <div class="ao5-attempts">
+        <input type="text" class="ao5-input" id="p2a1" placeholder="1" autocomplete="off">
+        <input type="text" class="ao5-input" id="p2a2" placeholder="2" autocomplete="off">
+        <input type="text" class="ao5-input" id="p2a3" placeholder="3" autocomplete="off">
+        <input type="text" class="ao5-input" id="p2a4" placeholder="4" autocomplete="off">
+        <input type="text" class="ao5-input" id="p2a5" placeholder="5" autocomplete="off">
+      </div>
+    </div>
   </div>
   <button class="btn-calc" id="btnCalc" onclick="doCalc()" data-i18n="calc">Calculate Win Rate</button>
 </div>
@@ -576,6 +633,9 @@ const I18N = {
     allTime:'全部时间',since:'自 {year} 年以来',
     normal:'正态分布',history:'原始采样',
     calc:'计算胜率',
+    mode_h2h:'H2H',mode_ao5:'AO5',
+    ao5_p1:'选手1 尝试 (秒 或 DNF)',
+    ao5_p2:'选手2 尝试 (秒 或 DNF)',
     loading:'正在获取WCA数据并计算...',
     stats_samples:'样本数',stats_best:'最佳',stats_worst:'最差',
     stats_mean:'均值',stats_std:'标准差',
@@ -605,6 +665,9 @@ const I18N = {
     allTime:'All time',since:'Since {year}',
     normal:'Normal distribution',history:'Raw sampling',
     calc:'Calculate Win Rate',
+    mode_h2h:'H2H',mode_ao5:'AO5',
+    ao5_p1:'Player 1 attempts (sec or DNF)',
+    ao5_p2:'Player 2 attempts (sec or DNF)',
     loading:'Fetching WCA data &amp; computing...',
     stats_samples:'Samples',stats_best:'Best',stats_worst:'Worst',
     stats_mean:'Mean',stats_std:'Std Dev',
@@ -667,6 +730,12 @@ function applyLang(lang) {
 }
 
 function toggleLang() { applyLang(currentLang === 'zh' ? 'en' : 'zh'); }
+
+function onModeChange() {
+  const mode = document.getElementById('mode').value;
+  document.getElementById('ao5Section').style.display = mode === 'ao5' ? 'block' : 'none';
+  updateMatch();
+}
 
 // ═══════════════════════════════════════════
 
@@ -747,7 +816,7 @@ function doCalc() {
   const id1 = document.getElementById('id1').value.trim();
   const id2 = document.getElementById('id2').value.trim();
   const event = document.getElementById('event').value;
-  const valuetype = document.getElementById('valuetype').value;
+  const mode = document.getElementById('mode').value;
 
   if (!id1 || !id2) {
     showError('Please enter both WCA IDs.');
@@ -759,7 +828,19 @@ function doCalc() {
   document.getElementById('resultCard').classList.remove('show');
   document.getElementById('btnCalc').disabled = true;
 
-  const params = new URLSearchParams({ id1, id2, event, type: valuetype, timerange: document.getElementById('timerange').value, rng: document.getElementById('rng').value });
+  const params = new URLSearchParams({ id1, id2, event, mode, timerange: document.getElementById('timerange').value, rng: document.getElementById('rng').value });
+
+  // Collect AO5 attempts
+  if (mode === 'ao5') {
+    const p1a = [], p2a = [];
+    for (let i = 1; i <= 5; i++) {
+      p1a.push(document.getElementById('p1a' + i).value.trim());
+      p2a.push(document.getElementById('p2a' + i).value.trim());
+    }
+    params.set('p1a', p1a.join(','));
+    params.set('p2a', p2a.join(','));
+  }
+
   fetch('/api/h2h?' + params)
     .then(r => r.json())
     .then(data => {
@@ -786,17 +867,18 @@ function showError(msg) {
 
 function showResult(d) {
   window._showResultData = d;
+  window._calcMode = d.mode || 'h2h';
   const wr = d.winrate;
   const p1w = (wr.player1_winrate * 100).toFixed(1);
   const p2w = (wr.player2_winrate * 100).toFixed(1);
   const drawP = (wr.draw_rate * 100).toFixed(2);
 
-  const evtTrans = t(d.event);
-  const typeTrans = t(d.type);
+  const evtTrans = t(d.event_id);
+  const modeTrans = t('mode_' + (d.mode || 'h2h'));
   const timerangeSel = document.getElementById('timerange');
   const timerangeText = timerangeSel.options[timerangeSel.selectedIndex].textContent;
   document.getElementById('matchTitle').textContent = d.player1.name + ' vs ' + d.player2.name;
-  document.getElementById('eventLabel').textContent = evtTrans + ' — ' + typeTrans + ' — ' + timerangeText;
+  document.getElementById('eventLabel').textContent = evtTrans + ' — ' + modeTrans + ' — ' + timerangeText;
   document.getElementById('flag1').textContent = flagEmoji(d.player1.country);
   document.getElementById('flag2').textContent = flagEmoji(d.player2.country);
   document.getElementById('pname1').textContent = d.player1.name;
@@ -853,6 +935,11 @@ function updateMatch() {
   const p1 = window._p1winrate;
   const p2 = window._p2winrate;
   if (p1 === undefined || p2 === undefined) return;
+
+  // Hide match section for AO5 mode
+  const isAO5 = window._calcMode === 'ao5';
+  document.querySelector('.match-section').style.display = isAO5 ? 'none' : 'block';
+  if (isAO5) return;
 
   const denom = p1 + p2;
   const p1_eff = denom > 0 ? p1 / denom : 0.5;

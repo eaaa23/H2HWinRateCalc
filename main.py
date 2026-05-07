@@ -47,8 +47,11 @@ class H2HHandler(BaseHTTPRequestHandler):
         id2 = params.get("id2", [""])[0]
         event = params.get("event", ["333"])[0]
         value_type = params.get("type", ["single"])[0]
+        mode = params.get("mode", ["h2h"])[0]
         rng_type = params.get("rng", ["history"])[0]
         timerange_str = params.get("timerange", ["-1"])[0]
+        p1a_raw = params.get("p1a", [""])[0]
+        p2a_raw = params.get("p2a", [""])[0]
 
         if not id1 or not id2:
             self._send_response(400, {"error": "Both id1 and id2 are required."})
@@ -56,9 +59,13 @@ class H2HHandler(BaseHTTPRequestHandler):
         if event not in EVENT_MAP:
             self._send_response(400, {"error": f"Invalid event. Supported: {', '.join(EVENT_MAP.keys())}"})
             return
-        if value_type not in ("single", "average"):
-            self._send_response(400, {"error": "type must be 'single' or 'average'."})
+        if mode not in ("h2h", "ao5"):
+            self._send_response(400, {"error": "mode must be 'h2h' or 'ao5'."})
             return
+
+        # Parse AO5 attempts: comma-separated, max 5 values
+        p1_attempts = [v.strip() for v in p1a_raw.split(",")][:5] if p1a_raw else None
+        p2_attempts = [v.strip() for v in p2a_raw.split(",")][:5] if p2a_raw else None
 
         since_year = None
         try:
@@ -70,7 +77,10 @@ class H2HHandler(BaseHTTPRequestHandler):
             pass
 
         try:
-            result = compute_h2h(id1, id2, event, value_type, rng_type, since_year)
+            result = compute_h2h(id1, id2, event, value_type, rng_type,
+                                 since_year, mode=mode,
+                                 p1_attempts=p1_attempts,
+                                 p2_attempts=p2_attempts)
             self._send_response(200, result)
         except Exception as e:
             self._send_response(500, {"error": str(e)})
