@@ -5,7 +5,7 @@
 ## 使用方法
 
 ```
-python3 cube_h2h.py
+python3 main.py
 ```
 
 然后打开浏览器访问 http://localhost:8080
