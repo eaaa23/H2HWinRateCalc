@@ -7,7 +7,6 @@ and serves results on a local web page.
 """
 
 import json
-import threading
 from datetime import date
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
