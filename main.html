@@ -498,7 +498,7 @@ body {
     <div id="setScoreSection" style="display:none">
       <div class="set-score-divider"></div>
       <div class="match-score-row">
-        <span class="match-score-label">Set score (大比分):</span>
+        <span class="match-score-label">Set score:</span>
         <input type="number" class="match-score-input" id="setS1" value="0" min="0" onchange="updateMatch()" />
         <span class="match-vs">–</span>
         <input type="number" class="match-score-input" id="setS2" value="0" min="0" onchange="updateMatch()" />
@@ -533,7 +533,7 @@ body {
 
 <div class="footer">
   Data sourced from <a href="https://github.com/robiningelbrecht/wca-rest-api" target="_blank" style="color:#60a5fa">unofficial WCA REST API</a> (Robin Ingelbrecht / wca-rest-api).
-  Win rates estimated via Monte Carlo simulation over 50,000 trials using normal distribution fit.
+  Win rates estimated via Monte Carlo simulation over 50,000 trials.
 </div>
 
 <script>
@@ -760,7 +760,7 @@ function updateMatch() {
   }
   setSection.style.display = 'block';
 
-  // Read set score (大比分) and cap to valid range
+  // Read set score and cap to valid range
   const maxSet = firstTo - 1;
   const s1 = Math.min(maxSet, Math.max(0, parseInt(document.getElementById('setS1').value) || 0));
   const s2 = Math.min(maxSet, Math.max(0, parseInt(document.getElementById('setS2').value) || 0));
@@ -815,12 +815,14 @@ function _renderBar(leftId, rightId, prob1, barId) {
     right.style.width = '100%';
     right.textContent = '100%';
   } else {
-    const pct1 = Math.max(5, (prob1 * 100).toFixed(1));
-    const pct2 = Math.max(5, ((1 - prob1) * 100).toFixed(1));
-    const total = parseFloat(pct1) + parseFloat(pct2);
-    left.style.width = (parseFloat(pct1) / total * 100) + '%';
+    const pct1 = parseFloat((prob1 * 100).toFixed(1));
+    const pct2 = parseFloat(((1 - prob1) * 100).toFixed(1));
+    const pct1_capped = Math.max(5, pct1);
+    const pct2_capped = Math.max(5, pct2);
+    const total = pct1 + pct2;
+    left.style.width = (pct1_capped / total * 100) + '%';
     left.textContent = pct1 + '%';
-    right.style.width = (parseFloat(pct2) / total * 100) + '%';
+    right.style.width = (pct2_capped / total * 100) + '%';
     right.textContent = pct2 + '%';
   }
 }
