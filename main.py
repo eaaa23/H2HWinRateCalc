@@ -10,6 +10,7 @@ import json
 from datetime import date
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+import os
 
 from api import search_cache
 from computation import compute_h2h
@@ -123,6 +124,7 @@ def main():
     except KeyboardInterrupt:
         print("\nShutting down.")
         server.server_close()
+        os._exit(0)
 
 
 if __name__ == "__main__":
