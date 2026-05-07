@@ -51,13 +51,15 @@ def monte_carlo_winrate(rng1: Callable[[], int | float],
 
         Models each competitor's performance as a random number generator.
         It could be a normal distribution or random choice from historical results.
+
+        rng: return centiseconds of a simulated attempt.
         """
     wins1 = 0
     wins2 = 0
     draws = 0
     for _ in range(simulations):
-        t1 = rng1()
-        t2 = rng2()
+        t1 = int(rng1())
+        t2 = int(rng2())
         if t1 < t2:
             wins1 += 1
         elif t2 < t1:
@@ -72,7 +74,7 @@ def monte_carlo_winrate(rng1: Callable[[], int | float],
 
 
 def _compute_single_ao5(rng: Callable[[], int | float],
-                        known: list) -> float | None:
+                        known: list) -> int | None:
     """Compute ao5 for one simulation run.
 
     known: list of 5 values — float (centiseconds), None (unknown), or
@@ -98,7 +100,7 @@ def _compute_single_ao5(rng: Callable[[], int | float],
     if any(t == float('inf') for t in middle):
         return None
 
-    return sum(middle) / 3.0
+    return int(sum(middle) / 3.0)
 
 
 def simulate_ao5(rng1: Callable[[], int | float],
