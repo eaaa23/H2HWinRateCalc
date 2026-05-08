@@ -522,9 +522,10 @@ body {
         }
       }
     </script>
-    <select id="rng" data-i18n-options="normal,history">
+    <select id="rng" data-i18n-options="normal,history,kde">
       <option value="normal">Normal distribution</option>
       <option value="history">Raw sampling</option>
+      <option value="kde">KDE (Gaussian kernel)</option>
     </select>
   </div>
   <div class="ao5-section" id="ao5Section" style="display:none">
@@ -658,7 +659,7 @@ const I18N = {
     '333oh':'三阶单手','333bf':'三阶盲拧',
     single:'单次',average:'平均 (轮次ao5)',
     allTime:'全部时间',since:'自 {year} 年以来',
-    normal:'正态分布',history:'原始采样',
+    normal:'正态分布',history:'原始采样',kde:'核密度估计',
     calc:'计算胜率',
     bpa_label:'BPA',wpa_label:'WPA',
     mode_h2h:'H2H',mode_ao5:'AO5',
@@ -691,7 +692,7 @@ const I18N = {
     '333oh':'3x3x3 One-Handed','333bf':'3x3x3 Blindfolded',
     single:'Single',average:'Average (ao5 of round)',
     allTime:'All time',since:'Since {year}',
-    normal:'Normal distribution',history:'Raw sampling',
+    normal:'Normal distribution',history:'Raw sampling',kde:'KDE (Gaussian kernel)',
     calc:'Calculate Win Rate',
     bpa_label:'BPA',wpa_label:'WPA',
     mode_h2h:'H2H',mode_ao5:'AO5',

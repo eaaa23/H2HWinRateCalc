@@ -149,6 +149,37 @@ def random_historical(times: list) -> Callable[[], int | float]:
     return lambda: random.choice(times)
 
 
+def kde_distribution(times: list) -> Callable[[], int | float]:
+    """Kernel density estimation with Gaussian kernel.
+
+    Sampling: pick a random data point + Gaussian noise with bandwidth h.
+    Bandwidth uses Silverman's rule: h = 0.9 * min(std, IQR/1.34) * n^(-1/5)
+    """
+    n = len(times)
+    if n <= 2:
+        return random_historical(times)
+
+    s = sorted(times)
+    mean = sum(times) / n
+    std = math.sqrt(sum((t - mean) ** 2 for t in times) / n)
+
+    def _pct(data, p):
+        k = (len(data) - 1) * p
+        f = math.floor(k)
+        c = math.ceil(k)
+        if f == c:
+            return data[int(k)]
+        return data[int(f)] * (c - k) + data[int(c)] * (k - f)
+
+    iqr = _pct(s, 0.75) - _pct(s, 0.25)
+    h = 0.9 * min(std, iqr / 1.34) * (n ** -0.2)
+
+    if h <= 0:
+        return random_historical(times)
+
+    return lambda: random.choice(times) + random.gauss(0, h)
+
+
 def compute_h2h(id1: str, id2: str, event_id: str,
                 value_type: str = "single",
                 rng_type: str = "normal",
@@ -217,6 +248,8 @@ def compute_h2h(id1: str, id2: str, event_id: str,
         rng1, rng2 = normal_distribution(stats1), normal_distribution(stats2)
     elif rng_type == "history":
         rng1, rng2 = random_historical(times1), random_historical(times2)
+    elif rng_type == "kde":
+        rng1, rng2 = kde_distribution(times1), kde_distribution(times2)
     else:
         return {"error": f"{rng_type} is not a valid RNG type."}
 
