@@ -906,8 +906,10 @@ function showResult(d) {
   const modeTrans = t('mode_' + (d.mode || 'h2h'));
   const timerangeSel = document.getElementById('timerange');
   const timerangeText = timerangeSel.options[timerangeSel.selectedIndex].textContent;
+  const rngSel = document.getElementById('rng');
+  const rngText = rngSel.options[rngSel.selectedIndex].textContent;
   document.getElementById('matchTitle').textContent = d.player1.name + ' vs ' + d.player2.name;
-  document.getElementById('eventLabel').textContent = evtTrans + ' — ' + modeTrans + ' — ' + timerangeText;
+  document.getElementById('eventLabel').textContent = evtTrans + ' — ' + modeTrans + ' — ' + timerangeText + ' — ' + rngText;
   document.getElementById('flag1').textContent = flagEmoji(d.player1.country);
   document.getElementById('flag2').textContent = flagEmoji(d.player2.country);
   document.getElementById('pname1').textContent = d.player1.name;
